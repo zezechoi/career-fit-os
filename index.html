@@ -170,22 +170,36 @@
 
         <!-- input mode tabs -->
         <div class="inline-flex p-1 rounded-lg bg-border mb-3">
-          <button id="resumeMode_text" class="input-tab-active px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('text')">텍스트 붙여넣기</button>
-          <button id="resumeMode_file" class="input-tab-inactive px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('file')">파일 업로드</button>
+          <button id="resumeMode_text" class="input-tab-active px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('text')">텍스트</button>
+          <button id="resumeMode_file" class="input-tab-inactive px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('file')">파일</button>
+          <button id="resumeMode_link" class="input-tab-inactive px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('link')">링크</button>
         </div>
 
         <div id="resumePane_text">
-          <textarea id="resumeText" rows="12" class="w-full rounded-lg px-4 py-3 text-sm leading-relaxed"></textarea>
+          <textarea id="resumeText" rows="10" class="w-full rounded-lg px-4 py-3 text-sm leading-relaxed"></textarea>
         </div>
 
         <div id="resumePane_file" class="hidden">
-          <label for="resumeFile" class="drop-zone block rounded-xl py-10 px-6 text-center cursor-pointer">
-            <div class="text-sub font-semibold mb-1">PDF 또는 DOCX 파일을 선택하세요</div>
-            <div class="text-xs text-mute">파일은 브라우저에서 직접 텍스트로 변환됩니다</div>
-            <input id="resumeFile" type="file" accept=".pdf,.docx" class="hidden" />
+          <label id="resumeDrop" for="resumeFile" class="drop-zone block rounded-xl py-10 px-6 text-center cursor-pointer">
+            <div class="text-sub font-semibold mb-1">PDF / DOCX 파일을 끌어다 놓거나 클릭하세요</div>
+            <div class="text-xs text-mute">여러 파일 동시 선택 가능. 모두 합쳐서 분석에 사용됩니다.</div>
+            <input id="resumeFile" type="file" accept=".pdf,.docx" class="hidden" multiple />
           </label>
           <div id="resumeFileStatus" class="text-xs text-sub mt-2 hidden"></div>
+          <ul id="resumeFilesList" class="mt-3 space-y-1.5"></ul>
         </div>
+
+        <div id="resumePane_link" class="hidden">
+          <div class="flex gap-2">
+            <input id="resumeLinkInput" type="text" placeholder="https://my-portfolio.example.com" class="flex-1 rounded-lg px-4 py-3 text-sm" />
+            <button id="resumeLinkAdd" class="btn-outline rounded-lg px-5 py-3 text-sm font-semibold whitespace-nowrap">추가</button>
+          </div>
+          <div id="resumeLinkStatus" class="text-xs text-sub mt-2 hidden"></div>
+          <ul id="resumeLinksList" class="mt-3 space-y-1.5"></ul>
+          <p class="text-xs text-mute mt-3 leading-relaxed">서버에서 페이지를 가져와 텍스트만 추출합니다. JS로 렌더링되는 페이지(SPA)는 내용이 비어 보일 수 있어요. 여러 개 추가 가능.</p>
+        </div>
+
+        <div id="resumeSourcesSummary" class="text-[11px] text-mute mt-3 hidden"></div>
       </div>
 
       <!-- ANALYZE -->
@@ -372,11 +386,13 @@ const MODEL = 'claude-sonnet-4-5';
 
 let state = {
   tab: 1,
-  apiKey: null,
+  apiKey: null,       // holds the access password
   profile: null,
   history: [],
   reasonSelected: null,
   resumeMode: 'text',
+  resumeFiles: [],    // [{ name, text }]
+  resumeLinks: [],    // [{ url, text }]
   jdMode: 'image',
   jdImageData: null,
   jdImageMediaType: null,
@@ -405,15 +421,9 @@ function saveHistoryItem(item){
 /* ============================================================
    API CLIENT (via Vercel serverless proxy)
 ============================================================ */
-async function callClaude(messages, system){
+async function callServer(path, body){
   if (!state.apiKey) throw new Error('NO_PASSWORD');
-  const body = {
-    model: MODEL,
-    max_tokens: 2048,
-    system,
-    messages,
-  };
-  const res = await fetch('/api/claude', {
+  const res = await fetch(path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -429,18 +439,21 @@ async function callClaude(messages, system){
     showKeyOverlay(msg);
     throw new Error(msg);
   }
+  let data = null;
+  try { data = await res.json(); } catch { /* ignore */ }
   if (!res.ok) {
-    let errMsg = '';
-    try {
-      const j = await res.json();
-      errMsg = j?.error?.message || JSON.stringify(j);
-    } catch {
-      errMsg = await res.text().catch(() => '');
-    }
-    throw new Error('API_ERROR ' + res.status + ': ' + errMsg.slice(0, 300));
+    const errMsg = data?.error?.message || ('HTTP ' + res.status);
+    throw new Error(errMsg);
   }
-  const data = await res.json();
   return data;
+}
+
+async function callClaude(messages, system){
+  return callServer('/api/claude', { model: MODEL, max_tokens: 2048, system, messages });
+}
+
+async function fetchUrl(url){
+  return callServer('/api/fetch', { url });
 }
 
 function extractJson(data){
@@ -539,7 +552,7 @@ function renderReasonChips(){
 
 function switchResumeMode(mode){
   state.resumeMode = mode;
-  ['text','file'].forEach(m => {
+  ['text','file','link'].forEach(m => {
     document.getElementById('resumeMode_'+m).className =
       'px-4 py-2 rounded-md text-xs font-semibold ' + (m===mode ? 'input-tab-active' : 'input-tab-inactive');
     document.getElementById('resumePane_'+m).classList.toggle('hidden', m!==mode);
@@ -604,8 +617,16 @@ function escapeHtml(s){
    ONBOARDING — ANALYZE
 ============================================================ */
 async function readResumeForAnalyze(){
-  // both modes share the same textarea — file mode parses into resumeText
-  return (document.getElementById('resumeText').value || '').trim();
+  const parts = [];
+  const txt = (document.getElementById('resumeText').value || '').trim();
+  if (txt) parts.push(txt);
+  state.resumeFiles.forEach(f => {
+    parts.push(`[첨부 파일: ${f.name}]\n${f.text}`);
+  });
+  state.resumeLinks.forEach(l => {
+    parts.push(`[참고 링크: ${l.url}]\n${l.text}`);
+  });
+  return parts.join('\n\n---\n\n');
 }
 
 document.getElementById('onbAnalyze').addEventListener('click', async () => {
@@ -692,40 +713,153 @@ if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-document.getElementById('resumeFile').addEventListener('change', async (e) => {
-  const f = e.target.files?.[0];
-  if (!f) return;
-  const status = document.getElementById('resumeFileStatus');
-  status.classList.remove('hidden');
-  status.textContent = '파일 변환 중...';
-  try {
-    let text = '';
-    if (f.name.toLowerCase().endsWith('.docx')) {
-      const buf = await f.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer: buf });
-      text = (result.value || '').trim();
-    } else if (f.name.toLowerCase().endsWith('.pdf')) {
-      const buf = await f.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-      const pages = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        pages.push(content.items.map(it => it.str).join(' '));
-      }
-      text = pages.join('\n').trim();
-    } else {
-      throw new Error('지원하지 않는 형식');
+async function parseResumeFile(f){
+  const lower = f.name.toLowerCase();
+  if (lower.endsWith('.docx')) {
+    const buf = await f.arrayBuffer();
+    const r = await mammoth.extractRawText({ arrayBuffer: buf });
+    return (r.value || '').trim();
+  }
+  if (lower.endsWith('.pdf')) {
+    const buf = await f.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pages.push(content.items.map(it => it.str).join(' '));
     }
-    if (!text) throw new Error('빈 텍스트');
-    document.getElementById('resumeText').value = text;
-    status.textContent = `✓ ${f.name} — ${text.length}자 추출됨. 위에서 확인 후 분석 시작하세요.`;
-    // switch to text view so user can verify
-    switchResumeMode('text');
+    return pages.join('\n').trim();
+  }
+  throw new Error('지원하지 않는 형식 (PDF / DOCX만 가능)');
+}
+
+async function addResumeFiles(fileList){
+  const status = document.getElementById('resumeFileStatus');
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  status.classList.remove('hidden');
+  let added = 0;
+  for (const f of files) {
+    status.textContent = `${f.name} 변환 중...`;
+    try {
+      const text = await parseResumeFile(f);
+      if (!text) throw new Error('빈 텍스트');
+      state.resumeFiles.push({ name: f.name, text });
+      added++;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `"${f.name}" 변환 실패 — 건너뜀. (${err.message})`;
+      await new Promise(r => setTimeout(r, 1200));
+    }
+  }
+  status.textContent = added ? `✓ ${added}개 파일 추가됨` : '추가된 파일이 없어요';
+  renderResumeFilesList();
+  renderSourcesSummary();
+  document.getElementById('resumeFile').value = '';
+}
+
+function removeResumeFile(idx){
+  state.resumeFiles.splice(idx, 1);
+  renderResumeFilesList();
+  renderSourcesSummary();
+}
+
+function renderResumeFilesList(){
+  const ul = document.getElementById('resumeFilesList');
+  ul.innerHTML = '';
+  state.resumeFiles.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.className = 'card flex items-center justify-between gap-3 px-3 py-2 rounded-lg';
+    li.innerHTML = `
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold truncate">${escapeHtml(f.name)}</div>
+        <div class="text-[11px] text-mute">${f.text.length.toLocaleString()}자</div>
+      </div>
+      <button class="text-xs text-mute hover:text-point" type="button">제거</button>
+    `;
+    li.querySelector('button').onclick = () => removeResumeFile(i);
+    ul.appendChild(li);
+  });
+}
+
+async function addResumeLink(url){
+  const status = document.getElementById('resumeLinkStatus');
+  status.classList.remove('hidden');
+  status.textContent = `${url} 가져오는 중...`;
+  try {
+    const data = await fetchUrl(url);
+    const text = (data?.text || '').trim();
+    if (!text) throw new Error('빈 응답');
+    state.resumeLinks.push({ url, text });
+    status.textContent = `✓ 추가됨 (${text.length.toLocaleString()}자)`;
+    document.getElementById('resumeLinkInput').value = '';
+    renderResumeLinksList();
+    renderSourcesSummary();
   } catch (err) {
     console.error(err);
-    status.textContent = '파일을 읽지 못했어요. 텍스트를 직접 붙여넣어 주세요.';
+    status.textContent = '실패: ' + err.message;
   }
+}
+
+function removeResumeLink(idx){
+  state.resumeLinks.splice(idx, 1);
+  renderResumeLinksList();
+  renderSourcesSummary();
+}
+
+function renderResumeLinksList(){
+  const ul = document.getElementById('resumeLinksList');
+  ul.innerHTML = '';
+  state.resumeLinks.forEach((l, i) => {
+    const li = document.createElement('li');
+    li.className = 'card flex items-center justify-between gap-3 px-3 py-2 rounded-lg';
+    li.innerHTML = `
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold truncate">${escapeHtml(l.url)}</div>
+        <div class="text-[11px] text-mute">${l.text.length.toLocaleString()}자</div>
+      </div>
+      <button class="text-xs text-mute hover:text-point" type="button">제거</button>
+    `;
+    li.querySelector('button').onclick = () => removeResumeLink(i);
+    ul.appendChild(li);
+  });
+}
+
+function renderSourcesSummary(){
+  const el = document.getElementById('resumeSourcesSummary');
+  const txtLen = document.getElementById('resumeText').value.trim().length;
+  const fileN = state.resumeFiles.length;
+  const linkN = state.resumeLinks.length;
+  const parts = [];
+  if (txtLen) parts.push(`텍스트 ${txtLen.toLocaleString()}자`);
+  if (fileN) parts.push(`파일 ${fileN}개`);
+  if (linkN) parts.push(`링크 ${linkN}개`);
+  if (parts.length) {
+    el.textContent = '현재 소스: ' + parts.join(' · ') + ' (분석 시 모두 합쳐 전달)';
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+document.getElementById('resumeFile').addEventListener('change', (e) => addResumeFiles(e.target.files));
+document.getElementById('resumeText').addEventListener('input', renderSourcesSummary);
+
+const resumeDrop = document.getElementById('resumeDrop');
+['dragenter','dragover'].forEach(ev => resumeDrop.addEventListener(ev, (e) => { e.preventDefault(); resumeDrop.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => resumeDrop.addEventListener(ev, (e) => { e.preventDefault(); resumeDrop.classList.remove('drag'); }));
+resumeDrop.addEventListener('drop', (e) => {
+  if (e.dataTransfer?.files?.length) addResumeFiles(e.dataTransfer.files);
+});
+
+document.getElementById('resumeLinkAdd').addEventListener('click', () => {
+  const v = document.getElementById('resumeLinkInput').value.trim();
+  if (!v) return;
+  addResumeLink(v);
+});
+document.getElementById('resumeLinkInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('resumeLinkAdd').click();
 });
 
 
