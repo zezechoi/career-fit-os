@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Career FIT — 나와 회사가 맞는지 빠르게 판단</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg:        '#F8F5EC',
+          ink:       '#241A14',
+          sub:       '#564A3D',
+          mute:      '#8B7D6A',
+          point:     '#B25E3F',
+          'point-dk':'#9A4F35',
+          border:    '#DFD6BD',
+          card:      '#FDFBF4',
+          warn:      '#C9A227',
+        },
+        fontFamily: {
+          sans: ['"Pretendard Variable"', 'Pretendard', 'system-ui', 'sans-serif']
+        }
+      }
+    }
+  };
+</script>
+<style>
+  :root { color-scheme: light; }
+  html, body { background: #F8F5EC; color: #241A14; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; }
+  body { font-feature-settings: "ss01","ss03","cv01"; -webkit-font-smoothing: antialiased; }
+  .tab-active { color: #241A14; border-bottom: 3px solid #B25E3F; font-weight: 700; }
+  .tab-inactive { color: #8B7D6A; border-bottom: 3px solid transparent; font-weight: 500; }
+  .input-tab-active { background: #241A14; color: #F8F5EC; }
+  .input-tab-inactive { background: transparent; color: #564A3D; }
+  .btn-primary { background:#B25E3F; color:#F8F5EC; }
+  .btn-primary:hover:not(:disabled) { background:#9A4F35; }
+  .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-outline { background:transparent; color:#241A14; border:1px solid #241A14; }
+  .btn-outline:hover { background:#241A14; color:#F8F5EC; }
+  .btn-ghost { background:transparent; color:#564A3D; }
+  .btn-ghost:hover { color:#241A14; }
+  .pill { display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .7rem; border-radius:999px; font-size:.75rem; font-weight:600; }
+  .reason-chip {
+    display:inline-flex; align-items:center;
+    background:#FDFBF4; color:#241A14;
+    border:1px solid #DFD6BD; border-radius:999px;
+    padding:.55rem 1rem; font-size:.875rem; font-weight:500;
+    cursor:pointer; transition: all .12s ease;
+  }
+  .reason-chip:hover { border-color:#241A14; }
+  .reason-chip.selected { background:#241A14; color:#F8F5EC; border-color:#241A14; }
+  .card { background:#FDFBF4; border:1px solid #DFD6BD; }
+  .divider { height:1px; background:#DFD6BD; }
+  .spinner { width:18px; height:18px; border:2px solid #DFD6BD; border-top-color:#B25E3F; border-radius:50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .drop-zone { border: 2px dashed #DFD6BD; transition: all .15s ease; }
+  .drop-zone.drag { border-color:#B25E3F; background:#FDFBF4; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display:none; }
+  details[open] .chev { transform: rotate(90deg); }
+  .chev { transition: transform .15s ease; }
+  textarea, input[type="text"], input[type="password"] {
+    background:#FDFBF4; border:1px solid #DFD6BD; color:#241A14;
+  }
+  textarea:focus, input:focus { outline: none; border-color:#241A14; }
+  /* verdict color BAND — big, clear */
+  .verdict-pass { background:#B25E3F; color:#F8F5EC; }
+  .verdict-hold { background:#8B7D6A; color:#F8F5EC; }
+  .verdict-skip { background:#EFE9D6; color:#564A3D; border:1px solid #DFD6BD; }
+  .copy-flash { background:#241A14 !important; color:#F8F5EC !important; }
+  /* Step number badge */
+  .step-num {
+    width: 28px; height:28px; border-radius:999px;
+    background:#241A14; color:#F8F5EC;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:.85rem;
+  }
+  /* Editable rings */
+  .editable {
+    background:#FDFBF4; border:1px solid #DFD6BD; border-radius:8px; padding:.5rem .75rem;
+  }
+  /* History row */
+  .hist-row { transition: background .12s ease; }
+  .hist-row:hover { background:#F2EBD8; }
+  .hist-pill-pass { background:#B25E3F; color:#F8F5EC; }
+  .hist-pill-hold { background:#8B7D6A; color:#F8F5EC; }
+  .hist-pill-skip { background:#DFD6BD; color:#564A3D; }
+  /* Top nav */
+  .nav-shadow { box-shadow: 0 1px 0 #DFD6BD; }
+  @media (max-width: 768px) {
+    .hide-mobile { display:none; }
+    .nav-wrap { padding-left: 1rem; padding-right: 1rem; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============== API KEY OVERLAY ============== -->
+<div id="apiKeyOverlay" class="fixed inset-0 z-50 bg-bg flex items-center justify-center px-4 hidden">
+  <div class="w-full max-w-md card rounded-2xl p-7">
+    <div class="text-xs tracking-widest text-mute mb-2">CAREER · FIT · OS</div>
+    <h2 class="text-2xl font-bold mb-2">시작하기 전에</h2>
+    <p class="text-sm text-sub leading-relaxed mb-5">
+      Claude API 키를 입력해주세요.<br/>
+      키는 이 브라우저에만 저장되고, 분석은 직접 Anthropic으로 호출됩니다.
+    </p>
+    <input id="apiKeyInput" type="password" placeholder="sk-ant-..." class="w-full rounded-lg px-4 py-3 text-sm mb-3" autocomplete="off" />
+    <div id="apiKeyError" class="text-xs text-point mb-3 hidden"></div>
+    <button id="apiKeySave" class="btn-primary w-full rounded-lg py-3 font-semibold">저장하고 시작</button>
+    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="block text-xs text-mute text-center mt-4 hover:text-ink">API 키 발급받기 →</a>
+  </div>
+</div>
+
+<!-- ============== TOP NAV ============== -->
+<nav class="sticky top-0 z-30 bg-bg nav-shadow">
+  <div class="max-w-3xl mx-auto nav-wrap px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-md bg-ink text-bg flex items-center justify-center font-bold text-sm">CF</div>
+      <div class="leading-tight">
+        <div class="font-bold text-base">Career FIT</div>
+        <div class="text-[11px] text-mute hide-mobile">나도 회사를 고른다 · 서로 맞아야 오래간다 · 최종 결정은 내가 한다</div>
+      </div>
+    </div>
+    <div class="text-[11px] text-mute hide-mobile" id="profileBadgeNav"></div>
+  </div>
+  <div class="max-w-3xl mx-auto nav-wrap px-6 flex gap-8 text-sm">
+    <button id="tabBtn1" class="py-3 tab-active" onclick="switchTab(1)">온보딩</button>
+    <button id="tabBtn2" class="py-3 tab-inactive" onclick="switchTab(2)">JD 분석기</button>
+  </div>
+</nav>
+
+<!-- ============== MAIN ============== -->
+<main class="max-w-3xl mx-auto px-6 py-8 pb-24">
+
+  <!-- ============== TAB 1 · ONBOARDING ============== -->
+  <section id="tab1" class="">
+
+    <!-- HEADER -->
+    <header class="mb-8">
+      <div class="text-xs tracking-widest text-mute mb-2">STEP · ONBOARDING</div>
+      <h1 class="text-3xl font-bold leading-tight">먼저 당신을 알려주세요</h1>
+      <p class="text-sub mt-2 text-sm leading-relaxed">한 번만 입력하면 됩니다. 다음부터는 채용공고만 넣으면 돼요.</p>
+    </header>
+
+    <!-- ONBOARDING FORM (shown when no profile) -->
+    <div id="onbForm">
+      <!-- STEP 1: REASON -->
+      <div class="mb-10">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="step-num">1</span>
+          <h2 class="text-lg font-bold">이직을 결심한 가장 큰 이유는?</h2>
+        </div>
+        <div id="reasonChips" class="flex flex-wrap gap-2">
+          <!-- chips injected -->
+        </div>
+        <input id="reasonOther" type="text" placeholder="직접 입력하세요" class="mt-3 w-full rounded-lg px-4 py-3 text-sm hidden" />
+      </div>
+
+      <!-- STEP 2: RESUME -->
+      <div class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="step-num">2</span>
+          <h2 class="text-lg font-bold">이력서를 알려주세요</h2>
+        </div>
+
+        <!-- input mode tabs -->
+        <div class="inline-flex p-1 rounded-lg bg-border mb-3">
+          <button id="resumeMode_text" class="input-tab-active px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('text')">텍스트 붙여넣기</button>
+          <button id="resumeMode_file" class="input-tab-inactive px-4 py-2 rounded-md text-xs font-semibold" onclick="switchResumeMode('file')">파일 업로드</button>
+        </div>
+
+        <div id="resumePane_text">
+          <textarea id="resumeText" rows="12" class="w-full rounded-lg px-4 py-3 text-sm leading-relaxed"></textarea>
+        </div>
+
+        <div id="resumePane_file" class="hidden">
+          <label for="resumeFile" class="drop-zone block rounded-xl py-10 px-6 text-center cursor-pointer">
+            <div class="text-sub font-semibold mb-1">PDF 또는 DOCX 파일을 선택하세요</div>
+            <div class="text-xs text-mute">파일은 브라우저에서 직접 텍스트로 변환됩니다</div>
+            <input id="resumeFile" type="file" accept=".pdf,.docx" class="hidden" />
+          </label>
+          <div id="resumeFileStatus" class="text-xs text-sub mt-2 hidden"></div>
+        </div>
+      </div>
+
+      <!-- ANALYZE -->
+      <div>
+        <button id="onbAnalyze" class="btn-primary w-full rounded-lg py-4 font-bold text-base flex items-center justify-center gap-2">
+          분석 시작
+        </button>
+        <div id="onbError" class="text-sm text-point mt-3 hidden"></div>
+      </div>
+    </div>
+
+    <!-- ONBOARDING RESULT -->
+    <div id="onbResult" class="hidden">
+      <div class="card rounded-2xl p-7 mb-5">
+        <div class="text-xs tracking-widest text-mute mb-2">나의 포지셔닝</div>
+        <div id="resSummary" class="text-2xl md:text-3xl font-bold leading-snug mb-6"></div>
+
+        <div class="divider mb-6"></div>
+
+        <div class="mb-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold">핵심 강점</h3>
+            <span class="text-[11px] text-mute">3</span>
+          </div>
+          <ul id="resStrengths" class="space-y-2"></ul>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold">Must 조건</h3>
+            <span class="text-[11px] text-mute">3</span>
+          </div>
+          <ul id="resMust" class="space-y-2"></ul>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button id="onbEdit" class="btn-outline flex-1 rounded-lg py-3 font-semibold">수정하기</button>
+        <button id="onbSaveDone" class="btn-primary flex-1 rounded-lg py-3 font-bold">저장하고 시작하기</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============== TAB 2 · JD ANALYZER ============== -->
+  <section id="tab2" class="hidden">
+
+    <!-- PROFILE STRIP -->
+    <div id="profileStrip" class="card rounded-xl p-4 mb-6 hidden">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[11px] tracking-widest text-mute mb-1">MY PROFILE</div>
+          <div id="stripSummary" class="font-bold text-base truncate"></div>
+          <div id="stripMust" class="text-xs text-sub mt-1"></div>
+        </div>
+        <button class="text-xs text-mute hover:text-ink whitespace-nowrap" onclick="editProfile()">프로필 수정</button>
+      </div>
+    </div>
+
+    <div id="needProfileMsg" class="card rounded-xl p-6 mb-6 text-center hidden">
+      <div class="font-semibold mb-2">먼저 프로필을 만들어주세요</div>
+      <div class="text-sm text-sub mb-4">이력서 한 번만 입력하면 JD 분석이 가능해요.</div>
+      <button class="btn-primary rounded-lg px-5 py-2.5 text-sm font-semibold" onclick="switchTab(1)">온보딩으로 가기</button>
+    </div>
+
+    <!-- HEADER -->
+    <header id="jdHeader" class="mb-6">
+      <div class="text-xs tracking-widest text-mute mb-2">JD · ANALYZE</div>
+      <h1 class="text-3xl font-bold leading-tight">채용공고를 분석합니다</h1>
+      <p class="text-sub mt-2 text-sm">이미지 또는 텍스트, 편한 쪽으로 넣으세요.</p>
+    </header>
+
+    <!-- JD INPUT -->
+    <div id="jdInputArea">
+      <div class="inline-flex p-1 rounded-lg bg-border mb-4">
+        <button id="jdMode_image" class="input-tab-active px-4 py-2 rounded-md text-xs font-semibold" onclick="switchJdMode('image')">이미지 업로드</button>
+        <button id="jdMode_text" class="input-tab-inactive px-4 py-2 rounded-md text-xs font-semibold" onclick="switchJdMode('text')">텍스트 붙여넣기</button>
+      </div>
+
+      <div id="jdPane_image">
+        <label id="jdDrop" class="drop-zone block rounded-xl py-12 px-6 text-center cursor-pointer">
+          <div class="text-base font-bold mb-2">JD 이미지를 끌어다 놓거나 클릭하세요</div>
+          <div class="text-xs text-mute leading-relaxed">잡코리아처럼 복사가 안 되는 공고도 이미지로 올리면 분석됩니다<br/>JPG · PNG · WEBP · GIF</div>
+          <input id="jdFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" />
+        </label>
+        <div id="jdPreview" class="mt-3 hidden">
+          <img id="jdPreviewImg" class="max-h-64 rounded-lg border border-border" alt="JD preview" />
+          <button id="jdPreviewClear" class="text-xs text-mute hover:text-ink mt-2">이미지 제거</button>
+        </div>
+      </div>
+
+      <div id="jdPane_text" class="hidden">
+        <textarea id="jdText" rows="10" placeholder="채용공고 텍스트를 붙여넣으세요" class="w-full rounded-lg px-4 py-3 text-sm leading-relaxed"></textarea>
+      </div>
+
+      <button id="jdAnalyze" class="btn-primary w-full rounded-lg py-4 font-bold mt-4">분석하기</button>
+      <div id="jdError" class="text-sm text-point mt-3 hidden"></div>
+    </div>
+
+    <!-- JD RESULT -->
+    <div id="jdResult" class="hidden">
+      <button id="jdBack" class="text-sm text-mute hover:text-ink mb-4">← 새 JD 분석하기</button>
+
+      <!-- VERDICT BAND — huge, clear -->
+      <div id="verdictBand" class="rounded-2xl px-7 py-7 mb-5">
+        <div class="flex items-center gap-4 mb-3">
+          <div id="verdictIcon" class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-2xl font-black">·</div>
+          <div>
+            <div id="verdictLabel" class="text-3xl md:text-4xl font-black leading-none"></div>
+            <div id="verdictCompany" class="text-sm opacity-80 mt-1"></div>
+          </div>
+        </div>
+        <p id="verdictReason" class="text-[15px] leading-relaxed opacity-95"></p>
+      </div>
+
+      <!-- ACTION BUTTONS -->
+      <div id="actionRow" class="flex flex-wrap gap-3 mb-2"></div>
+      <div id="actionHint" class="text-xs text-mute mb-7 hidden"></div>
+
+      <!-- APPEALS -->
+      <div class="card rounded-xl p-5 mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-base">어필 포인트</h3>
+          <span class="text-[11px] text-mute" id="appealsCount"></span>
+        </div>
+        <ul id="appealsList" class="space-y-3"></ul>
+      </div>
+
+      <!-- GAPS (collapsed) -->
+      <details class="card rounded-xl p-5">
+        <summary class="flex items-center justify-between">
+          <h3 class="font-bold text-base">갭 · 대응 전략</h3>
+          <span class="text-mute chev">›</span>
+        </summary>
+        <ul id="gapsList" class="space-y-4 mt-4"></ul>
+      </details>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="historySection" class="mt-12">
+      <div class="divider mb-6"></div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold">분석 기록</h2>
+        <span id="historyCount" class="text-xs text-mute"></span>
+      </div>
+      <div id="historyList" class="space-y-1"></div>
+      <div id="historyEmpty" class="text-sm text-mute text-center py-8 hidden">아직 분석 기록이 없어요</div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ============== FOOTER ============== -->
+<button id="changeKeyBtn" class="fixed bottom-4 right-4 z-20 text-[11px] text-mute hover:text-ink bg-bg/80 backdrop-blur px-3 py-1.5 rounded-md border border-border">API 키 변경</button>
+
+<!-- ============== APP SCRIPT ============== -->
+<script>
+/* ============================================================
+   STATE
+============================================================ */
+const STORE = {
+  KEY: 'careerfit_api_key',
+  PROFILE: 'careerfit_profile',
+  HISTORY: 'careerfit_history',
+};
+
+const SAMPLE_RESUME = `OO회사 · 마케팅팀 · 2022~현재
+- 글로벌 브랜드 SNS 채널 운영
+- 해외 파트너사 커뮤니케이션
+- 콘텐츠 기획 및 캠페인 집행
+
+OO회사 · 영업팀 · 2019~2022
+- 신규 거래처 발굴 및 계약
+- 해외 전시회 바이어 상담
+- 제안서 작성 및 수주`;
+
+const REASONS = [
+  '연봉을 높이고 싶어서',
+  '성장이 막혀서',
+  '회사/팀 문화가 안 맞아서',
+  '하고 싶은 직무가 달라서',
+  '기타 (직접 입력)',
+];
+
+const MODEL = 'claude-sonnet-4-5';
+
+let state = {
+  tab: 1,
+  apiKey: null,
+  profile: null,
+  history: [],
+  reasonSelected: null,
+  resumeMode: 'text',
+  jdMode: 'image',
+  jdImageData: null,
+  jdImageMediaType: null,
+  jdLoading: false,
+  onbLoading: false,
+};
+
+/* ============================================================
+   STORAGE HELPERS
+============================================================ */
+function loadAll(){
+  state.apiKey  = localStorage.getItem(STORE.KEY);
+  try { state.profile = JSON.parse(localStorage.getItem(STORE.PROFILE) || 'null'); } catch { state.profile = null; }
+  try { state.history = JSON.parse(localStorage.getItem(STORE.HISTORY) || '[]'); } catch { state.history = []; }
+}
+function saveProfile(p){
+  state.profile = p;
+  localStorage.setItem(STORE.PROFILE, JSON.stringify(p));
+}
+function saveHistoryItem(item){
+  state.history.unshift(item);
+  if (state.history.length > 50) state.history = state.history.slice(0, 50);
+  localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
+}
+
+/* ============================================================
+   API CLIENT
+============================================================ */
+async function callClaude(messages, system){
+  if (!state.apiKey) throw new Error('NO_API_KEY');
+  const body = {
+    model: MODEL,
+    max_tokens: 2048,
+    system,
+    messages,
+  };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': state.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(()=> '');
+    throw new Error('API_ERROR: ' + res.status + ' ' + errText.slice(0,200));
+  }
+  const data = await res.json();
+  return data;
+}
+
+function extractJson(data){
+  let text = (data?.content?.[0]?.text || '').trim();
+  text = text.replace(/```json|```/g, '').trim();
+  // try direct parse, otherwise extract first {...} block
+  try { return JSON.parse(text); }
+  catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) return JSON.parse(m[0]);
+    throw new Error('PARSE_FAIL');
+  }
+}
+
+const SYSTEM_PROMPT = `커리어핏은 이직 준비를 돕는 커리어 전문가입니다.
+핵심 원칙: 지원자도 회사를 고릅니다. 서로 맞아야 오래갑니다.
+판단은 돕되, 결정은 본인이 합니다.
+반드시 JSON만 응답하세요. 설명, 마크다운, 코드블록 없이 순수 JSON만.`;
+
+/* ============================================================
+   API KEY FLOW
+============================================================ */
+function showKeyOverlay(){
+  document.getElementById('apiKeyOverlay').classList.remove('hidden');
+  document.getElementById('apiKeyInput').value = state.apiKey || '';
+}
+function hideKeyOverlay(){
+  document.getElementById('apiKeyOverlay').classList.add('hidden');
+}
+document.getElementById('apiKeySave').addEventListener('click', () => {
+  const v = document.getElementById('apiKeyInput').value.trim();
+  const err = document.getElementById('apiKeyError');
+  if (!v || !v.startsWith('sk-ant-')) {
+    err.textContent = '올바른 Anthropic API 키 형식이 아니에요. (sk-ant-로 시작)';
+    err.classList.remove('hidden');
+    return;
+  }
+  err.classList.add('hidden');
+  state.apiKey = v;
+  localStorage.setItem(STORE.KEY, v);
+  hideKeyOverlay();
+});
+document.getElementById('changeKeyBtn').addEventListener('click', showKeyOverlay);
+
+/* ============================================================
+   TAB SWITCH
+============================================================ */
+function switchTab(n){
+  state.tab = n;
+  document.getElementById('tab1').classList.toggle('hidden', n !== 1);
+  document.getElementById('tab2').classList.toggle('hidden', n !== 2);
+  document.getElementById('tabBtn1').className = 'py-3 ' + (n===1 ? 'tab-active':'tab-inactive');
+  document.getElementById('tabBtn2').className = 'py-3 ' + (n===2 ? 'tab-active':'tab-inactive');
+  if (n === 2) renderJdTab();
+  if (n === 1) renderOnboardingTab();
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+/* ============================================================
+   ONBOARDING — UI
+============================================================ */
+function renderReasonChips(){
+  const wrap = document.getElementById('reasonChips');
+  wrap.innerHTML = '';
+  REASONS.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'reason-chip';
+    btn.textContent = r;
+    btn.onclick = () => {
+      state.reasonSelected = r;
+      document.querySelectorAll('.reason-chip').forEach(c => c.classList.remove('selected'));
+      btn.classList.add('selected');
+      const otherInput = document.getElementById('reasonOther');
+      if (r.startsWith('기타')) {
+        otherInput.classList.remove('hidden');
+        otherInput.focus();
+      } else {
+        otherInput.classList.add('hidden');
+        otherInput.value = '';
+      }
+    };
+    wrap.appendChild(btn);
+  });
+}
+
+function switchResumeMode(mode){
+  state.resumeMode = mode;
+  ['text','file'].forEach(m => {
+    document.getElementById('resumeMode_'+m).className =
+      'px-4 py-2 rounded-md text-xs font-semibold ' + (m===mode ? 'input-tab-active' : 'input-tab-inactive');
+    document.getElementById('resumePane_'+m).classList.toggle('hidden', m!==mode);
+  });
+}
+
+function switchJdMode(mode){
+  state.jdMode = mode;
+  ['image','text'].forEach(m => {
+    document.getElementById('jdMode_'+m).className =
+      'px-4 py-2 rounded-md text-xs font-semibold ' + (m===mode ? 'input-tab-active' : 'input-tab-inactive');
+    document.getElementById('jdPane_'+m).classList.toggle('hidden', m!==mode);
+  });
+}
+
+function renderOnboardingTab(){
+  if (state.profile) {
+    showOnboardingResult(state.profile);
+  } else {
+    document.getElementById('onbForm').classList.remove('hidden');
+    document.getElementById('onbResult').classList.add('hidden');
+    const ta = document.getElementById('resumeText');
+    if (!ta.placeholder) ta.placeholder = SAMPLE_RESUME;
+    // safety: ensure chips are present every time form is shown
+    if (!document.querySelector('#reasonChips .reason-chip')) renderReasonChips();
+  }
+  // nav badge
+  const badge = document.getElementById('profileBadgeNav');
+  badge.textContent = state.profile ? state.profile.summary : '';
+}
+
+function showOnboardingResult(p){
+  document.getElementById('onbForm').classList.add('hidden');
+  document.getElementById('onbResult').classList.remove('hidden');
+  document.getElementById('resSummary').textContent = p.summary || '';
+  fillEditableList('resStrengths', p.strengths || [], 'strengths');
+  fillEditableList('resMust', p.must || [], 'must');
+}
+
+function fillEditableList(id, items, key){
+  const ul = document.getElementById(id);
+  ul.innerHTML = '';
+  items.forEach((t, i) => {
+    const li = document.createElement('li');
+    li.className = 'flex items-start gap-3';
+    li.innerHTML = `
+      <span class="mt-1 w-5 h-5 rounded-full bg-border text-sub flex items-center justify-center text-[11px] font-bold flex-shrink-0">${i+1}</span>
+      <div class="editable flex-1 text-sm" contenteditable="true" data-key="${key}" data-idx="${i}">${escapeHtml(t)}</div>
+    `;
+    ul.appendChild(li);
+  });
+}
+function readEditableList(id){
+  return Array.from(document.querySelectorAll('#'+id+' [contenteditable]')).map(el => el.textContent.trim()).filter(Boolean);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+/* ============================================================
+   ONBOARDING — ANALYZE
+============================================================ */
+async function readResumeForAnalyze(){
+  // both modes share the same textarea — file mode parses into resumeText
+  return (document.getElementById('resumeText').value || '').trim();
+}
+
+document.getElementById('onbAnalyze').addEventListener('click', async () => {
+  const reason = (state.reasonSelected && state.reasonSelected.startsWith('기타'))
+      ? (document.getElementById('reasonOther').value.trim() || '기타')
+      : state.reasonSelected;
+
+  const resume = await readResumeForAnalyze();
+  const err = document.getElementById('onbError');
+  err.classList.add('hidden');
+
+  if (!reason) { err.textContent = '이직 이유를 선택해주세요.'; err.classList.remove('hidden'); return; }
+  if (!resume) { err.textContent = '이력서를 입력해주세요.'; err.classList.remove('hidden'); return; }
+
+  if (!state.apiKey) { showKeyOverlay(); return; }
+
+  const btn = document.getElementById('onbAnalyze');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 분석 중...';
+
+  try {
+    const userText =
+`이직 이유: ${reason}
+이력서: ${resume}
+
+아래 형식의 JSON만 응답해줘:
+{"summary":"한 줄 포지셔닝 20자 이내","strengths":["강점1","강점2","강점3"],"must":["Must조건1","조건2","조건3"],"keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"]}`;
+    const data = await callClaude(
+      [{ role: 'user', content: userText }],
+      SYSTEM_PROMPT
+    );
+    const profile = extractJson(data);
+    const full = {
+      reason, resume_raw: resume,
+      summary: profile.summary || '',
+      strengths: profile.strengths || [],
+      must: profile.must || [],
+      keywords: profile.keywords || [],
+      updated_at: new Date().toISOString(),
+    };
+    saveProfile(full);
+    showOnboardingResult(full);
+    document.getElementById('profileBadgeNav').textContent = full.summary;
+  } catch (e) {
+    console.error(e);
+    err.textContent = '분석 중 오류가 생겼어요. 다시 시도해주세요. (' + e.message + ')';
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '분석 시작';
+  }
+});
+
+document.getElementById('onbEdit').addEventListener('click', () => {
+  // already inline editable; refocus first
+  const first = document.querySelector('#resSummary');
+  first.setAttribute('contenteditable','true');
+  first.classList.add('editable');
+  first.focus();
+});
+
+document.getElementById('onbSaveDone').addEventListener('click', () => {
+  const summaryEl = document.getElementById('resSummary');
+  const updated = {
+    ...state.profile,
+    summary: summaryEl.textContent.trim(),
+    strengths: readEditableList('resStrengths'),
+    must: readEditableList('resMust'),
+    updated_at: new Date().toISOString(),
+  };
+  saveProfile(updated);
+  document.getElementById('profileBadgeNav').textContent = updated.summary;
+  switchTab(2);
+});
+
+function editProfile(){
+  switchTab(1);
+}
+
+/* ============================================================
+   RESUME — FILE UPLOAD
+============================================================ */
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+document.getElementById('resumeFile').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const status = document.getElementById('resumeFileStatus');
+  status.classList.remove('hidden');
+  status.textContent = '파일 변환 중...';
+  try {
+    let text = '';
+    if (f.name.toLowerCase().endsWith('.docx')) {
+      const buf = await f.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      text = (result.value || '').trim();
+    } else if (f.name.toLowerCase().endsWith('.pdf')) {
+      const buf = await f.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      const pages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        pages.push(content.items.map(it => it.str).join(' '));
+      }
+      text = pages.join('\n').trim();
+    } else {
+      throw new Error('지원하지 않는 형식');
+    }
+    if (!text) throw new Error('빈 텍스트');
+    document.getElementById('resumeText').value = text;
+    status.textContent = `✓ ${f.name} — ${text.length}자 추출됨. 위에서 확인 후 분석 시작하세요.`;
+    // switch to text view so user can verify
+    switchResumeMode('text');
+  } catch (err) {
+    console.error(err);
+    status.textContent = '파일을 읽지 못했어요. 텍스트를 직접 붙여넣어 주세요.';
+  }
+});
+
+
+/* ============================================================
+   JD TAB
+============================================================ */
+function renderJdTab(){
+  if (!state.profile) {
+    document.getElementById('needProfileMsg').classList.remove('hidden');
+    document.getElementById('profileStrip').classList.add('hidden');
+    document.getElementById('jdHeader').classList.add('hidden');
+    document.getElementById('jdInputArea').classList.add('hidden');
+    document.getElementById('jdResult').classList.add('hidden');
+    document.getElementById('historySection').classList.add('hidden');
+    return;
+  }
+  document.getElementById('needProfileMsg').classList.add('hidden');
+  document.getElementById('profileStrip').classList.remove('hidden');
+  document.getElementById('jdHeader').classList.remove('hidden');
+  document.getElementById('historySection').classList.remove('hidden');
+
+  document.getElementById('stripSummary').textContent = state.profile.summary;
+  document.getElementById('stripMust').textContent = (state.profile.must || []).join(' · ');
+
+  renderHistory();
+  showJdInput();
+}
+
+function showJdInput(){
+  document.getElementById('jdInputArea').classList.remove('hidden');
+  document.getElementById('jdResult').classList.add('hidden');
+  document.getElementById('jdHeader').classList.remove('hidden');
+}
+
+function showJdResult(result, fromHistory=false){
+  document.getElementById('jdInputArea').classList.add('hidden');
+  document.getElementById('jdResult').classList.remove('hidden');
+  document.getElementById('jdHeader').classList.add('hidden');
+
+  const verdict = (result.verdict || '').trim();
+  const band = document.getElementById('verdictBand');
+  const icon = document.getElementById('verdictIcon');
+  const label = document.getElementById('verdictLabel');
+  const company = document.getElementById('verdictCompany');
+  const reason = document.getElementById('verdictReason');
+
+  band.className = 'rounded-2xl px-7 py-7 mb-5';
+  if (verdict === '지원') {
+    band.classList.add('verdict-pass');
+    icon.textContent = '✓';
+    label.textContent = '지원';
+  } else if (verdict === '보류') {
+    band.classList.add('verdict-hold');
+    icon.textContent = '—';
+    label.textContent = '보류';
+  } else {
+    band.classList.add('verdict-skip');
+    icon.textContent = '×';
+    label.textContent = '패스';
+    icon.style.background = '#DFD6BD';
+  }
+  if (verdict !== '패스') icon.style.background = 'rgba(255,255,255,.22)';
+
+  company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
+  reason.textContent = result.verdict_reason || '';
+
+  // action buttons
+  const actions = document.getElementById('actionRow');
+  const hint = document.getElementById('actionHint');
+  actions.innerHTML = '';
+  hint.classList.add('hidden');
+
+  function appealsToText(){
+    return (result.appeals || []).map((a, i) => `${i+1}. ${a}`).join('\n\n');
+  }
+
+  function makeBtn(label, kind, onClick){
+    const b = document.createElement('button');
+    b.className = (kind==='primary' ? 'btn-primary' : 'btn-outline') + ' rounded-lg px-5 py-3 font-semibold text-sm';
+    b.textContent = label;
+    b.onclick = onClick;
+    return b;
+  }
+
+  if (verdict === '지원') {
+    actions.appendChild(makeBtn('어필 포인트 전체 복사', 'primary', (e) => copyAll(e.currentTarget, appealsToText())));
+    actions.appendChild(makeBtn('새 JD 분석하기', 'outline', resetJd));
+  } else if (verdict === '보류') {
+    actions.appendChild(makeBtn('어필 포인트 미리 복사해두기', 'primary', (e) => copyAll(e.currentTarget, appealsToText())));
+    actions.appendChild(makeBtn('새 JD 분석하기', 'outline', resetJd));
+    hint.textContent = '마음이 바뀌면 히스토리에서 다시 볼 수 있어요';
+    hint.classList.remove('hidden');
+  } else {
+    actions.appendChild(makeBtn('새 JD 분석하기', 'primary', resetJd));
+    const link = document.createElement('button');
+    link.className = 'btn-ghost rounded-lg px-3 py-3 text-sm underline';
+    link.textContent = '그래도 지원할게요 — 어필 포인트 복사';
+    link.onclick = (e) => copyAll(e.currentTarget, appealsToText());
+    actions.appendChild(link);
+  }
+
+  // appeals
+  document.getElementById('appealsCount').textContent = (result.appeals||[]).length;
+  const appealsUl = document.getElementById('appealsList');
+  appealsUl.innerHTML = '';
+  (result.appeals || []).forEach((a, i) => {
+    const li = document.createElement('li');
+    li.className = 'flex items-start gap-3';
+    li.innerHTML = `
+      <span class="mt-0.5 w-6 h-6 rounded-full bg-ink text-bg flex items-center justify-center text-[11px] font-bold flex-shrink-0">${i+1}</span>
+      <div class="flex-1">
+        <div class="text-sm leading-relaxed text-ink">${escapeHtml(a)}</div>
+      </div>
+      <button class="btn-outline rounded-md px-3 py-1 text-xs whitespace-nowrap">복사</button>
+    `;
+    li.querySelector('button').onclick = (e) => copyAll(e.currentTarget, a);
+    appealsUl.appendChild(li);
+  });
+
+  // gaps
+  const gapsUl = document.getElementById('gapsList');
+  gapsUl.innerHTML = '';
+  (result.gaps || []).forEach((g) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="font-semibold text-sm text-ink mb-1">${escapeHtml(g.gap || '')}</div>
+      <div class="text-sm text-sub leading-relaxed">${escapeHtml(g.strategy || '')}</div>
+    `;
+    gapsUl.appendChild(li);
+  });
+}
+
+function resetJd(){
+  state.jdImageData = null;
+  state.jdImageMediaType = null;
+  document.getElementById('jdText').value = '';
+  document.getElementById('jdPreview').classList.add('hidden');
+  document.getElementById('jdPreviewImg').src = '';
+  document.getElementById('jdFile').value = '';
+  showJdInput();
+}
+
+document.getElementById('jdBack').addEventListener('click', resetJd);
+
+async function copyAll(btn, text){
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '복사됨 ✓';
+    btn.classList.add('copy-flash');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copy-flash'); }, 1300);
+  } catch (e) {
+    alert('복사 실패: ' + e.message);
+  }
+}
+
+/* ============================================================
+   JD — IMAGE UPLOAD
+============================================================ */
+const jdDrop = document.getElementById('jdDrop');
+const jdFile = document.getElementById('jdFile');
+['dragenter','dragover'].forEach(ev => jdDrop.addEventListener(ev, (e) => { e.preventDefault(); jdDrop.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => jdDrop.addEventListener(ev, (e) => { e.preventDefault(); jdDrop.classList.remove('drag'); }));
+jdDrop.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files?.[0];
+  if (f) handleJdImage(f);
+});
+jdFile.addEventListener('change', (e) => {
+  const f = e.target.files?.[0];
+  if (f) handleJdImage(f);
+});
+document.getElementById('jdPreviewClear').addEventListener('click', resetJd);
+
+async function handleJdImage(f){
+  const ok = ['image/jpeg','image/png','image/webp','image/gif'];
+  if (!ok.includes(f.type)) { alert('지원 형식: JPG/PNG/WEBP/GIF'); return; }
+  try {
+    const { dataUrl, mediaType } = await resizeImageIfNeeded(f, 1568);
+    state.jdImageMediaType = mediaType;
+    state.jdImageData = String(dataUrl).split(',')[1] || '';
+    document.getElementById('jdPreviewImg').src = dataUrl;
+    document.getElementById('jdPreview').classList.remove('hidden');
+  } catch (e) {
+    console.error(e);
+    alert('이미지 처리에 실패했어요. 다른 이미지로 시도해주세요.');
+  }
+}
+
+function resizeImageIfNeeded(file, maxDim){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const originalDataUrl = reader.result;
+      const img = new Image();
+      img.onload = () => {
+        const { width, height } = img;
+        if (width <= maxDim && height <= maxDim) {
+          resolve({ dataUrl: originalDataUrl, mediaType: file.type });
+          return;
+        }
+        const scale = Math.min(maxDim / width, maxDim / height);
+        const newW = Math.round(width * scale);
+        const newH = Math.round(height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = newW;
+        canvas.height = newH;
+        const ctx = canvas.getContext('2d');
+        // white background guards JPEG against transparency loss
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, newW, newH);
+        ctx.drawImage(img, 0, 0, newW, newH);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        resolve({ dataUrl, mediaType: 'image/jpeg' });
+      };
+      img.onerror = () => reject(new Error('image load failed'));
+      img.src = originalDataUrl;
+    };
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================================================
+   JD ANALYZE
+============================================================ */
+document.getElementById('jdAnalyze').addEventListener('click', async () => {
+  if (!state.profile) { switchTab(1); return; }
+  const err = document.getElementById('jdError');
+  err.classList.add('hidden');
+  if (!state.apiKey) { showKeyOverlay(); return; }
+
+  const p = state.profile;
+  const profileText =
+`내 프로필:
+포지셔닝: ${p.summary}
+핵심 강점: ${(p.strengths||[]).join(', ')}
+Must 조건: ${(p.must||[]).join(', ')}
+역량 키워드: ${(p.keywords||[]).join(', ')}`;
+
+  const jsonSchema =
+`아래 형식의 JSON만 응답해줘:
+{"company":"회사명(없으면 미상)","position":"포지션명","verdict":"지원 또는 보류 또는 패스","verdict_reason":"판정 이유 2문장. 내 Must 기준 + JD 요건 기준 양방향으로.","appeals":["어필1 — 내 경력 증거 포함 완성 문장","어필2","어필3"],"gaps":[{"gap":"부족한 것","strategy":"이렇게 대응하면 됩니다"}]}`;
+
+  let messages;
+  if (state.jdMode === 'image') {
+    if (!state.jdImageData) { err.textContent = 'JD 이미지를 업로드해주세요.'; err.classList.remove('hidden'); return; }
+    const textPart = `${profileText}\n\n이 채용공고 이미지를 분석해서 ${jsonSchema}`;
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: state.jdImageMediaType, data: state.jdImageData } },
+        { type: 'text', text: textPart },
+      ],
+    }];
+  } else {
+    const jd = document.getElementById('jdText').value.trim();
+    if (!jd) { err.textContent = 'JD 텍스트를 붙여넣어주세요.'; err.classList.remove('hidden'); return; }
+    const textPart = `${profileText}\n\n채용공고: ${jd}\n\n${jsonSchema}`;
+    messages = [{ role: 'user', content: textPart }];
+  }
+
+  const btn = document.getElementById('jdAnalyze');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 분석 중...';
+
+  try {
+    const data = await callClaude(messages, SYSTEM_PROMPT);
+    const result = extractJson(data);
+    // normalize
+    const item = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      company: result.company || '미상',
+      position: result.position || '',
+      verdict: result.verdict || '보류',
+      verdict_reason: result.verdict_reason || '',
+      appeals: result.appeals || [],
+      gaps: result.gaps || [],
+      analyzed_at: new Date().toISOString(),
+    };
+    saveHistoryItem(item);
+    showJdResult(item);
+    renderHistory();
+  } catch (e) {
+    console.error(e);
+    err.textContent = '분석 중 오류가 생겼어요. 다시 시도해주세요. (' + e.message + ')';
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '분석하기';
+  }
+});
+
+/* ============================================================
+   HISTORY
+============================================================ */
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  const count = document.getElementById('historyCount');
+  list.innerHTML = '';
+  if (!state.history.length) {
+    empty.classList.remove('hidden');
+    count.textContent = '';
+    return;
+  }
+  empty.classList.add('hidden');
+  count.textContent = state.history.length + '건';
+  state.history.forEach((h) => {
+    const row = document.createElement('button');
+    row.className = 'hist-row w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg text-left';
+    const pillClass = h.verdict==='지원' ? 'hist-pill-pass' : h.verdict==='보류' ? 'hist-pill-hold' : 'hist-pill-skip';
+    const date = new Date(h.analyzed_at);
+    const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
+    row.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="pill ${pillClass}">${escapeHtml(h.verdict)}</span>
+        <span class="text-sm font-semibold truncate">${escapeHtml(h.company || '미상')} · ${escapeHtml(h.position || '')}</span>
+      </div>
+      <div class="flex items-center gap-2 text-mute text-xs whitespace-nowrap">
+        <span>${dd}</span>
+        <span>›</span>
+      </div>
+    `;
+    row.onclick = () => showJdResult(h, true);
+    list.appendChild(row);
+  });
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+function init(){
+  loadAll();
+  renderReasonChips();
+  if (!state.apiKey) showKeyOverlay();
+  if (state.profile) {
+    switchTab(2);
+  } else {
+    renderOnboardingTab();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
