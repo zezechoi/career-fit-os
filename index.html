@@ -101,19 +101,18 @@
 </head>
 <body class="min-h-screen">
 
-<!-- ============== API KEY OVERLAY ============== -->
+<!-- ============== PASSWORD OVERLAY ============== -->
 <div id="apiKeyOverlay" class="fixed inset-0 z-50 bg-bg flex items-center justify-center px-4 hidden">
   <div class="w-full max-w-md card rounded-2xl p-7">
     <div class="text-xs tracking-widest text-mute mb-2">CAREER · FIT · OS</div>
-    <h2 class="text-2xl font-bold mb-2">시작하기 전에</h2>
+    <h2 class="text-2xl font-bold mb-2">접속 비밀번호</h2>
     <p class="text-sm text-sub leading-relaxed mb-5">
-      Claude API 키를 입력해주세요.<br/>
-      키는 이 브라우저에만 저장되고, 분석은 직접 Anthropic으로 호출됩니다.
+      관리자에게 받은 비밀번호를 입력해주세요.<br/>
+      비밀번호는 이 브라우저에만 저장됩니다.
     </p>
-    <input id="apiKeyInput" type="password" placeholder="sk-ant-..." class="w-full rounded-lg px-4 py-3 text-sm mb-3" autocomplete="off" />
+    <input id="apiKeyInput" type="password" placeholder="비밀번호" class="w-full rounded-lg px-4 py-3 text-sm mb-3" autocomplete="off" />
     <div id="apiKeyError" class="text-xs text-point mb-3 hidden"></div>
     <button id="apiKeySave" class="btn-primary w-full rounded-lg py-3 font-semibold">저장하고 시작</button>
-    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="block text-xs text-mute text-center mt-4 hover:text-ink">API 키 발급받기 →</a>
   </div>
 </div>
 
@@ -339,8 +338,6 @@
   </section>
 </main>
 
-<!-- ============== FOOTER ============== -->
-<button id="changeKeyBtn" class="fixed bottom-4 right-4 z-20 text-[11px] text-mute hover:text-ink bg-bg/80 backdrop-blur px-3 py-1.5 rounded-md border border-border">API 키 변경</button>
 
 <!-- ============== APP SCRIPT ============== -->
 <script>
@@ -348,7 +345,7 @@
    STATE
 ============================================================ */
 const STORE = {
-  KEY: 'careerfit_api_key',
+  KEY: 'careerfit_password',
   PROFILE: 'careerfit_profile',
   HISTORY: 'careerfit_history',
 };
@@ -406,26 +403,32 @@ function saveHistoryItem(item){
 }
 
 /* ============================================================
-   API CLIENT
+   API CLIENT (via Vercel serverless proxy)
 ============================================================ */
 async function callClaude(messages, system){
-  if (!state.apiKey) throw new Error('NO_API_KEY');
+  if (!state.apiKey) throw new Error('NO_PASSWORD');
   const body = {
     model: MODEL,
     max_tokens: 2048,
     system,
     messages,
   };
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/api/claude', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': state.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
+      'x-app-password': state.apiKey,
     },
     body: JSON.stringify(body),
   });
+  if (res.status === 401) {
+    // wrong password — force re-entry
+    localStorage.removeItem(STORE.KEY);
+    state.apiKey = null;
+    showKeyOverlay();
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j?.error?.message || '비밀번호가 올바르지 않아요.');
+  }
   if (!res.ok) {
     const errText = await res.text().catch(()=> '');
     throw new Error('API_ERROR: ' + res.status + ' ' + errText.slice(0,200));
@@ -452,11 +455,12 @@ const SYSTEM_PROMPT = `커리어핏은 이직 준비를 돕는 커리어 전문�
 반드시 JSON만 응답하세요. 설명, 마크다운, 코드블록 없이 순수 JSON만.`;
 
 /* ============================================================
-   API KEY FLOW
+   PASSWORD FLOW
 ============================================================ */
 function showKeyOverlay(){
   document.getElementById('apiKeyOverlay').classList.remove('hidden');
   document.getElementById('apiKeyInput').value = state.apiKey || '';
+  setTimeout(() => document.getElementById('apiKeyInput').focus(), 0);
 }
 function hideKeyOverlay(){
   document.getElementById('apiKeyOverlay').classList.add('hidden');
@@ -464,8 +468,8 @@ function hideKeyOverlay(){
 document.getElementById('apiKeySave').addEventListener('click', () => {
   const v = document.getElementById('apiKeyInput').value.trim();
   const err = document.getElementById('apiKeyError');
-  if (!v || !v.startsWith('sk-ant-')) {
-    err.textContent = '올바른 Anthropic API 키 형식이 아니에요. (sk-ant-로 시작)';
+  if (!v) {
+    err.textContent = '비밀번호를 입력해주세요.';
     err.classList.remove('hidden');
     return;
   }
@@ -474,7 +478,9 @@ document.getElementById('apiKeySave').addEventListener('click', () => {
   localStorage.setItem(STORE.KEY, v);
   hideKeyOverlay();
 });
-document.getElementById('changeKeyBtn').addEventListener('click', showKeyOverlay);
+document.getElementById('apiKeyInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('apiKeySave').click();
+});
 
 /* ============================================================
    TAB SWITCH
