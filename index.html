@@ -982,6 +982,30 @@ function showJdResult(result, fromHistory=false){
   if (verdict !== '패스') icon.style.background = 'rgba(255,255,255,.22)';
 
   company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
+  company.setAttribute('contenteditable', 'true');
+  company.setAttribute('title', '클릭해서 회사명/포지션 수정 (히스토리에도 반영됩니다)');
+  company.style.cursor = 'text';
+  company.onblur = () => {
+    const newText = company.textContent.trim();
+    if (!newText) return;
+    const parts = newText.split('·').map(s => s.trim());
+    const newCompany = parts[0] || result.company;
+    const newPosition = parts.slice(1).join(' · ') || '';
+    const item = state.history.find(h => h.id === result.id);
+    if (item) {
+      item.company = newCompany;
+      item.position = newPosition;
+      localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
+      renderHistory();
+    }
+    // also reflect in the current result reference for any further actions
+    result.company = newCompany;
+    result.position = newPosition;
+  };
+  company.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); company.blur(); }
+    if (e.key === 'Escape') { company.blur(); }
+  };
   reason.textContent = result.verdict_reason || '';
 
   // action buttons
@@ -1158,8 +1182,14 @@ Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
 
   const jsonSchema =
-`아래 형식의 JSON만 응답해줘:
-{"company":"회사명(없으면 미상)","position":"포지션명","verdict":"지원 또는 보류 또는 패스","verdict_reason":"판정 이유 2문장. 내 Must 기준 + JD 요건 기준 양방향으로.","appeals":["어필1 — 내 경력 증거 포함 완성 문장","어필2","어필3"],"gaps":[{"gap":"부족한 것","strategy":"이렇게 대응하면 됩니다"}]}`;
+`회사명 추출 규칙:
+- 명시된 회사명이 있으면 그대로 추출 (로고 텍스트, 헤더, 회사소개, URL 등 어디서든)
+- 없으면 회사를 식별할 수 있는 구체적인 한 줄 설명 (예: "K-뷰티 D2C 스타트업", "유럽 진출 글로벌 마케팅 에이전시", "B2B SaaS 시리즈A 스타트업")
+- "미상" 단독 사용은 정말 아무 정보도 없을 때만
+- 회사명 뒤에 "(미상)" 같은 부가 표기 절대 붙이지 말 것
+
+아래 형식의 JSON만 응답해줘:
+{"company":"회사명 또는 회사 특징 한 줄","position":"포지션명","verdict":"지원 또는 보류 또는 패스","verdict_reason":"판정 이유 2문장. 내 Must 기준 + JD 요건 기준 양방향으로.","appeals":["어필1 — 내 경력 증거 포함 완성 문장","어필2","어필3"],"gaps":[{"gap":"부족한 것","strategy":"이렇게 대응하면 됩니다"}]}`;
 
   let messages;
   if (state.jdMode === 'image') {
