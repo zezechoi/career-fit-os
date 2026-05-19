@@ -236,9 +236,15 @@
         </div>
       </div>
 
-      <div class="flex gap-3">
-        <button id="onbEdit" class="btn-outline flex-1 rounded-lg py-3 font-semibold">수정하기</button>
-        <button id="onbSaveDone" class="btn-primary flex-1 rounded-lg py-3 font-bold">저장하고 시작하기</button>
+      <div class="flex flex-col gap-3">
+        <div class="flex gap-3">
+          <button id="onbEdit" class="btn-outline flex-1 rounded-lg py-3 font-semibold">텍스트만 수정</button>
+          <button id="onbSaveDone" class="btn-primary flex-1 rounded-lg py-3 font-bold">저장하고 시작하기</button>
+        </div>
+        <button id="onbBackToForm" class="btn-ghost rounded-lg py-2.5 text-sm font-semibold border border-border hover:border-ink">
+          + 자료 추가 또는 처음부터 다시 분석하기
+        </button>
+        <p class="text-[11px] text-mute text-center -mt-1 leading-relaxed">노션 링크 · 포트폴리오 사이트 · 추가 파일 등을 더 넣고 다시 분석할 수 있어요</p>
       </div>
     </div>
 
@@ -572,16 +578,54 @@ function renderOnboardingTab(){
   if (state.profile) {
     showOnboardingResult(state.profile);
   } else {
-    document.getElementById('onbForm').classList.remove('hidden');
-    document.getElementById('onbResult').classList.add('hidden');
-    const ta = document.getElementById('resumeText');
-    if (!ta.placeholder) ta.placeholder = SAMPLE_RESUME;
-    // safety: ensure chips are present every time form is shown
-    if (!document.querySelector('#reasonChips .reason-chip')) renderReasonChips();
+    showForm();
   }
   // nav badge
   const badge = document.getElementById('profileBadgeNav');
   badge.textContent = state.profile ? state.profile.summary : '';
+}
+
+function showForm(){
+  document.getElementById('onbForm').classList.remove('hidden');
+  document.getElementById('onbResult').classList.add('hidden');
+
+  const ta = document.getElementById('resumeText');
+  if (!ta.placeholder) ta.placeholder = SAMPLE_RESUME;
+  if (!document.querySelector('#reasonChips .reason-chip')) renderReasonChips();
+
+  // analyze button label depends on whether we're editing existing profile
+  document.getElementById('onbAnalyze').textContent = state.profile ? '다시 분석' : '분석 시작';
+
+  // restore from saved profile so user can add to it
+  if (state.profile && state.profile.resume_sources) {
+    const src = state.profile.resume_sources;
+    ta.value = src.text || '';
+    state.resumeFiles = (src.files || []).map(f => ({ name: f.name, text: f.text }));
+    state.resumeLinks = (src.links || []).map(l => ({ url: l.url, text: l.text }));
+    renderResumeFilesList();
+    renderResumeLinksList();
+    renderSourcesSummary();
+
+    // restore selected reason
+    state.reasonSelected = state.profile.reason;
+    const chips = Array.from(document.querySelectorAll('.reason-chip'));
+    chips.forEach(c => c.classList.remove('selected'));
+    const otherInput = document.getElementById('reasonOther');
+    otherInput.classList.add('hidden');
+    otherInput.value = '';
+
+    const exactChip = chips.find(c => c.textContent === state.profile.reason);
+    if (exactChip) {
+      exactChip.classList.add('selected');
+    } else {
+      // custom reason — mark 기타 chip and fill input
+      const etcChip = chips.find(c => c.textContent.startsWith('기타'));
+      if (etcChip) etcChip.classList.add('selected');
+      otherInput.classList.remove('hidden');
+      otherInput.value = state.profile.reason || '';
+      state.reasonSelected = '기타 (직접 입력)';
+    }
+  }
 }
 
 function showOnboardingResult(p){
@@ -660,7 +704,13 @@ document.getElementById('onbAnalyze').addEventListener('click', async () => {
     );
     const profile = extractJson(data);
     const full = {
-      reason, resume_raw: resume,
+      reason,
+      resume_raw: resume,
+      resume_sources: {
+        text: document.getElementById('resumeText').value || '',
+        files: state.resumeFiles.map(f => ({ name: f.name, text: f.text })),
+        links: state.resumeLinks.map(l => ({ url: l.url, text: l.text })),
+      },
       summary: profile.summary || '',
       strengths: profile.strengths || [],
       must: profile.must || [],
@@ -681,7 +731,7 @@ document.getElementById('onbAnalyze').addEventListener('click', async () => {
 });
 
 document.getElementById('onbEdit').addEventListener('click', () => {
-  // already inline editable; refocus first
+  // inline edit summary text
   const first = document.querySelector('#resSummary');
   first.setAttribute('contenteditable','true');
   first.classList.add('editable');
@@ -702,8 +752,16 @@ document.getElementById('onbSaveDone').addEventListener('click', () => {
   switchTab(2);
 });
 
+document.getElementById('onbBackToForm').addEventListener('click', () => {
+  showForm();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
 function editProfile(){
   switchTab(1);
+  // when arriving from Tab 2's "프로필 수정", jump straight into form mode
+  showForm();
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 /* ============================================================
