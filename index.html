@@ -81,6 +81,9 @@
   /* cards with accent */
   .card-brand { background:#FDFBF4; border:1px solid #DFD6BD; border-left:4px solid #B25E3F; }
   .card-guide { background:#FBF3E9; border:1px solid #E8C9A8; }
+  /* 1st-pass cosmetics filter flag */
+  .flag-warn { background:#FBF0DE; border:1px solid #E3C77A; color:#7A5A12; }
+  .flag-ok   { background:#EAF3EC; border:1px solid #B9D6C2; color:#2F6647; }
   /* Step number badge */
   .step-num {
     width: 28px; height:28px; border-radius:999px;
@@ -322,6 +325,9 @@
         <div id="verdictCompany" class="text-sm font-semibold opacity-90"></div>
         <div id="verdictMissing" class="text-sm mt-3 hidden leading-relaxed"></div>
       </div>
+
+      <!-- COSMETICS 1ST-PASS FILTER FLAG -->
+      <div id="cosmeticsFlag" class="rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed hidden"></div>
 
       <!-- BRAND CONNECTION (always shown) -->
       <div id="brandConnectionCard" class="card-brand rounded-xl p-5 mb-4">
@@ -1061,6 +1067,21 @@ function showJdResult(result, fromHistory=false){
     missing.classList.add('hidden');
   }
 
+  // ---- cosmetics 1st-pass filter flag ----
+  const cosFlag = document.getElementById('cosmeticsFlag');
+  const cosLevel = result.cosmetics && result.cosmetics.level;
+  if (cosLevel === 'required') {
+    cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-warn';
+    cosFlag.textContent = '⚠️ 화장품 경력 필수 공고 — 이력서에 K-Beauty Files + 브랜드 분석 경력으로 커버 전략 필요';
+    cosFlag.classList.remove('hidden');
+  } else if (cosLevel === 'preferred' || cosLevel === 'none') {
+    cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-ok';
+    cosFlag.textContent = '✓ 화장품 경력 불필수';
+    cosFlag.classList.remove('hidden');
+  } else {
+    cosFlag.classList.add('hidden');
+  }
+
   // ---- brand connection (always) ----
   document.getElementById('brandConnectionText').textContent = result.brand_connection || '(연결 정보 없음)';
 
@@ -1274,12 +1295,17 @@ Must 조건: ${(p.must||[]).join(', ')}
 
 ${APPEAL_PRIORITY}
 
+[화장품 경력 1차 필터] cosmetics.level 판정:
+- "required": 화장품/뷰티 경력이 '필수 요건'으로 명시 (예: "화장품 경력 필수", "뷰티 업계 경력 O년 이상 필수", "화장품사 재직 경험 필수")
+- "preferred": 화장품 경력이 '우대사항'으로만 언급되거나, "유관 업계 경력" / "글로벌 영업·마케팅 경력"을 인정하는 경우
+- "none": 화장품/뷰티 경력 언급 자체가 없음
+
 회사명 규칙: 명시된 회사명이 있으면 그대로. 없으면 식별 가능한 한 줄 설명 (예: "K-뷰티 D2C 스타트업"). "미상" 단독은 정말 정보가 없을 때만. "(미상)" 같은 부가표기 금지.
 
 갭/보완 작성 규칙: "~가 부족합니다"가 아니라 "~는 이렇게 커버 가능합니다" 처럼 반드시 커버 방법 중심의 긍정 톤으로.
 
 아래 형식의 JSON만 응답해줘:
-{"company":"회사명 또는 특징 한 줄","position":"포지션명","criteria":[{"key":"global","met":true,"note":"근거 한 줄"},{"key":"brand_flow","met":false,"note":"근거 한 줄"},{"key":"small_org","met":true,"note":"근거 한 줄"},{"key":"startup","met":true,"note":"근거 한 줄"}],"brand_connection":"이 공고가 브랜드 창업 경험으로 어떻게 연결되는지 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에는 [○○ 경험]을 앞에 배치하세요 — 한 줄. 무역실무보다 브랜드 운영/마케팅 경험을 앞으로.","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
+{"company":"회사명 또는 특징 한 줄","position":"포지션명","cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},"criteria":[{"key":"global","met":true,"note":"근거 한 줄"},{"key":"brand_flow","met":false,"note":"근거 한 줄"},{"key":"small_org","met":true,"note":"근거 한 줄"},{"key":"startup","met":true,"note":"근거 한 줄"}],"brand_connection":"이 공고가 브랜드 창업 경험으로 어떻게 연결되는지 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에는 [○○ 경험]을 앞에 배치하세요 — 한 줄. 무역실무보다 브랜드 운영/마케팅 경험을 앞으로.","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
 
   let messages;
   if (state.jdMode === 'image') {
@@ -1315,6 +1341,7 @@ ${APPEAL_PRIORITY}
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       company: result.company || '미상',
       position: result.position || '',
+      cosmetics: result.cosmetics || null,
       criteria,
       verdict: computeVerdict(criteria),
       brand_connection: result.brand_connection || '',
