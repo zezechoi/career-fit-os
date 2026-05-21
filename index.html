@@ -1229,7 +1229,14 @@ function buildResumeBlob(){
 }
 
 async function generateResumeDraft(result){
-  const resumeBlob = buildResumeBlob();
+  // cap input so a single request stays well under the per-minute token limit
+  const MAX_RESUME = 9000;
+  const MAX_JD = 3000;
+  let resumeBlob = buildResumeBlob();
+  if (resumeBlob.length > MAX_RESUME) resumeBlob = resumeBlob.slice(0, MAX_RESUME) + '\n…(이하 생략)';
+  let jdText = result.jd_text || '';
+  if (jdText.length > MAX_JD) jdText = jdText.slice(0, MAX_JD) + '…';
+
   const analysisContext =
 `[이 채용공고 분석 결과]
 회사: ${result.company || ''}
@@ -1238,7 +1245,7 @@ async function generateResumeDraft(result){
 화장품 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}
 어필 포인트: ${(result.appeals || []).join(' | ')}
 이력서 가이드: ${result.resume_guide || ''}
-브랜드 창업 연결: ${result.brand_connection || ''}${result.jd_text ? `\n원문 JD:\n${result.jd_text}` : ''}`;
+브랜드 창업 연결: ${result.brand_connection || ''}${jdText ? `\n원문 JD:\n${jdText}` : ''}`;
 
   const prompt =
 `${analysisContext}
@@ -1312,7 +1319,10 @@ async function runDraftGeneration(){
     res.innerHTML = '';
     res.classList.add('hidden');
     btn.classList.remove('hidden');
-    err.textContent = '초안 생성 중 오류가 생겼어요. 다시 시도해주세요. (' + e.message + ')';
+    const msg = e.message || '';
+    err.textContent = /rate limit|429|exceed|토큰/i.test(msg)
+      ? '분당 사용량 한도에 걸렸어요. 약 1분 뒤 다시 눌러주세요. (이력서/링크 양이 많으면 일부를 줄이면 더 안정적이에요)'
+      : '초안 생성 중 오류가 생겼어요. 다시 시도해주세요. (' + msg + ')';
     err.classList.remove('hidden');
   }
 }
