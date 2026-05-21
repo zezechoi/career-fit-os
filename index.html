@@ -96,7 +96,7 @@
     background:#FDFBF4; border:1px solid #DFD6BD; border-radius:8px; padding:.5rem .75rem;
   }
   /* History row */
-  .hist-row { transition: background .12s ease; border:1px solid #DFD6BD; background:#FDFBF4; }
+  .hist-row { transition: background .12s ease; }
   .hist-row:hover { background:#F2EBD8; }
   .hist-pill-green  { background:#3E7C5A; color:#F8F5EC; }
   .hist-pill-yellow { background:#D6A93B; color:#241A14; }
@@ -106,11 +106,6 @@
   .hist-tab:hover { border-color:#241A14; }
   .hist-tab.active { background:#241A14; color:#F8F5EC; border-color:#241A14; }
   .hist-tab-badge { font-size:.7rem; opacity:.85; }
-  /* Application status dropdown */
-  .status-select { background:#FDFBF4; border:1px solid #DFD6BD; color:#564A3D; border-radius:6px; padding:.2rem .5rem; font-size:.72rem; font-weight:600; cursor:pointer; }
-  .status-select.status-applied { border-color:#B25E3F; color:#B25E3F; }
-  .status-select.status-passed  { border-color:#D6A93B; color:#8A6D18; }
-  .status-select.status-final   { border-color:#3E7C5A; color:#3E7C5A; background:#EAF3EC; }
   /* Top nav */
   .nav-shadow { box-shadow: 0 1px 0 #DFD6BD; }
   @media (max-width: 768px) {
@@ -396,7 +391,7 @@
         <button id="histTab_all" type="button" class="hist-tab active" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
         <button id="histTab_recommend" type="button" class="hist-tab" onclick="setHistoryFilter('recommend')">지원 추천 ✓ <span id="histCount_recommend" class="hist-tab-badge">0</span></button>
       </div>
-      <div id="historyList" class="space-y-2"></div>
+      <div id="historyList" class="space-y-1"></div>
       <div id="historyEmpty" class="text-sm text-mute text-center py-8 hidden">아직 분석 기록이 없어요</div>
     </div>
 
@@ -1556,7 +1551,6 @@ ${APPEAL_PRIORITY}
       appeals: result.appeals || [],
       resume_guide: result.resume_guide || '',
       gaps: result.gaps || [],
-      status: '지원 전',
       analyzed_at: new Date().toISOString(),
     };
     saveHistoryItem(item);
@@ -1575,11 +1569,6 @@ ${APPEAL_PRIORITY}
 /* ============================================================
    HISTORY
 ============================================================ */
-const STATUS_OPTIONS = ['지원 전', '지원 완료', '서류 통과', '최종'];
-function statusKey(status){
-  return { '지원 전':'before', '지원 완료':'applied', '서류 통과':'passed', '최종':'final' }[status] || 'before';
-}
-
 function setHistoryFilter(f){
   state.historyFilter = f;
   renderHistory();
@@ -1618,15 +1607,10 @@ function renderHistory(){
     const meta = verdictMeta(verdict);
     const date = new Date(h.analyzed_at);
     const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
-    const status = h.status || '지원 전';
 
-    const card = document.createElement('div');
-    card.className = 'hist-row rounded-lg px-3 py-2.5';
-
-    // top: clickable summary -> opens detail
-    const top = document.createElement('div');
-    top.className = 'flex items-center justify-between gap-3 cursor-pointer';
-    top.innerHTML = `
+    const row = document.createElement('button');
+    row.className = 'hist-row w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg text-left';
+    row.innerHTML = `
       <div class="flex items-center gap-3 min-w-0">
         <span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span>
         <span class="text-sm font-semibold truncate">${escapeHtml(h.company || '미상')}${h.position ? ' · ' + escapeHtml(h.position) : ''}</span>
@@ -1635,37 +1619,8 @@ function renderHistory(){
         <span>${dd}</span><span>›</span>
       </div>
     `;
-    top.onclick = () => showJdResult(h, true);
-
-    // bottom: application status dropdown (structure; persisted to localStorage)
-    const bottom = document.createElement('div');
-    bottom.className = 'flex items-center gap-2 mt-2';
-    const lbl = document.createElement('span');
-    lbl.className = 'text-[11px] text-mute';
-    lbl.textContent = '지원 현황';
-    const sel = document.createElement('select');
-    sel.className = 'status-select status-' + statusKey(status);
-    STATUS_OPTIONS.forEach(opt => {
-      const o = document.createElement('option');
-      o.value = opt; o.textContent = opt;
-      if (opt === status) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.onclick = (e) => e.stopPropagation();
-    sel.onchange = (e) => {
-      e.stopPropagation();
-      h.status = sel.value;
-      const it = state.history.find(x => x.id === h.id);
-      if (it) it.status = sel.value;
-      localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
-      sel.className = 'status-select status-' + statusKey(sel.value);
-    };
-    bottom.appendChild(lbl);
-    bottom.appendChild(sel);
-
-    card.appendChild(top);
-    card.appendChild(bottom);
-    list.appendChild(card);
+    row.onclick = () => showJdResult(h, true);
+    list.appendChild(row);
   });
 }
 
