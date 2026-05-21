@@ -70,10 +70,17 @@
   }
   textarea:focus, input:focus { outline: none; border-color:#241A14; }
   /* verdict color BAND — big, clear */
-  .verdict-pass { background:#B25E3F; color:#F8F5EC; }
-  .verdict-hold { background:#8B7D6A; color:#F8F5EC; }
-  .verdict-skip { background:#EFE9D6; color:#564A3D; border:1px solid #DFD6BD; }
+  .verdict-green  { background:#3E7C5A; color:#F8F5EC; }   /* 지원 추천 */
+  .verdict-yellow { background:#D6A93B; color:#241A14; }   /* 검토 필요 */
+  .verdict-gray   { background:#EFE9D6; color:#564A3D; border:1px solid #DFD6BD; } /* 패스 */
   .copy-flash { background:#241A14 !important; color:#F8F5EC !important; }
+  /* criteria checklist */
+  .crit-yes { color:#3E7C5A; }
+  .crit-no  { color:#B25E3F; }
+  .crit-row-no { background:#FBF1E9; border-color:#E8C9A8; }
+  /* cards with accent */
+  .card-brand { background:#FDFBF4; border:1px solid #DFD6BD; border-left:4px solid #B25E3F; }
+  .card-guide { background:#FBF3E9; border:1px solid #E8C9A8; }
   /* Step number badge */
   .step-num {
     width: 28px; height:28px; border-radius:999px;
@@ -88,9 +95,9 @@
   /* History row */
   .hist-row { transition: background .12s ease; }
   .hist-row:hover { background:#F2EBD8; }
-  .hist-pill-pass { background:#B25E3F; color:#F8F5EC; }
-  .hist-pill-hold { background:#8B7D6A; color:#F8F5EC; }
-  .hist-pill-skip { background:#DFD6BD; color:#564A3D; }
+  .hist-pill-green  { background:#3E7C5A; color:#F8F5EC; }
+  .hist-pill-yellow { background:#D6A93B; color:#241A14; }
+  .hist-pill-gray   { background:#DFD6BD; color:#564A3D; }
   /* Top nav */
   .nav-shadow { box-shadow: 0 1px 0 #DFD6BD; }
   @media (max-width: 768px) {
@@ -309,24 +316,37 @@
     <div id="jdResult" class="hidden">
       <button id="jdBack" class="text-sm text-mute hover:text-ink mb-4">← 새 JD 분석하기</button>
 
-      <!-- VERDICT BAND — huge, clear -->
-      <div id="verdictBand" class="rounded-2xl px-7 py-7 mb-5">
-        <div class="flex items-center gap-4 mb-3">
-          <div id="verdictIcon" class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-2xl font-black">·</div>
-          <div>
-            <div id="verdictLabel" class="text-3xl md:text-4xl font-black leading-none"></div>
-            <div id="verdictCompany" class="text-sm opacity-80 mt-1"></div>
-          </div>
-        </div>
-        <p id="verdictReason" class="text-[15px] leading-relaxed opacity-95"></p>
+      <!-- VERDICT BAND — badge + company -->
+      <div id="verdictBand" class="rounded-2xl px-7 py-6 mb-4">
+        <div id="verdictLabel" class="text-3xl md:text-4xl font-black leading-none mb-3"></div>
+        <div id="verdictCompany" class="text-sm font-semibold opacity-90"></div>
+        <div id="verdictMissing" class="text-sm mt-3 hidden leading-relaxed"></div>
+      </div>
+
+      <!-- BRAND CONNECTION (always shown) -->
+      <div id="brandConnectionCard" class="card-brand rounded-xl p-5 mb-4">
+        <div class="text-sm font-bold mb-1.5">이 공고, 브랜드 창업 경험으로 연결되나요?</div>
+        <div class="text-[15px] text-sub leading-relaxed">→ <span id="brandConnectionText"></span></div>
+      </div>
+
+      <!-- 4 CRITERIA CHECKLIST -->
+      <div id="criteriaCard" class="card rounded-xl p-5 mb-4">
+        <h3 class="font-bold text-base mb-3">4대 기준 체크</h3>
+        <ul id="criteriaList" class="space-y-2.5"></ul>
       </div>
 
       <!-- ACTION BUTTONS -->
       <div id="actionRow" class="flex flex-wrap gap-3 mb-2"></div>
       <div id="actionHint" class="text-xs text-mute mb-7 hidden"></div>
 
+      <!-- RESUME CUSTOM GUIDE -->
+      <div id="resumeGuideCard" class="card-guide rounded-xl p-5 mb-4">
+        <h3 class="font-bold text-base mb-2">이력서 커스텀 가이드</h3>
+        <p id="resumeGuideText" class="text-[15px] leading-relaxed text-ink"></p>
+      </div>
+
       <!-- APPEALS -->
-      <div class="card rounded-xl p-5 mb-4">
+      <div id="appealsCard" class="card rounded-xl p-5 mb-4">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-bold text-base">어필 포인트</h3>
           <span class="text-[11px] text-mute" id="appealsCount"></span>
@@ -337,7 +357,7 @@
       <!-- GAPS (collapsed) -->
       <details class="card rounded-xl p-5">
         <summary class="flex items-center justify-between">
-          <h3 class="font-bold text-base">갭 · 대응 전략</h3>
+          <h3 class="font-bold text-base">보완 포인트 · 커버 전략</h3>
           <span class="text-mute chev">›</span>
         </summary>
         <ul id="gapsList" class="space-y-4 mt-4"></ul>
@@ -474,9 +494,35 @@ function extractJson(data){
   }
 }
 
-const SYSTEM_PROMPT = `커리어핏은 이직 준비를 돕는 커리어 전문가입니다.
-핵심 원칙: 지원자도 회사를 고릅니다. 서로 맞아야 오래갑니다.
-판단은 돕되, 결정은 본인이 합니다.
+const PERSONA = `[지원자 — 최지예]
+- 포지셔닝: 글로벌 오퍼레이터 지망
+- 경력: 해외영업 6년 + IT 마케터 1년
+- 핵심 강점: 커뮤니케이션, 협상력, 스토리텔링
+- 에너지 원천: 사명감, 소속감, 함께 새로운 시도
+- 취약점: 빠른 판단, 꼼꼼한 관리, 경쟁 성과 중심 환경
+- 최종 목표: K-뷰티 브랜드 직접 창업
+- 이직 관점: 창업에 필요한 경험을 쌓는 스텝으로 이직을 본다`;
+
+// 4 fixed JD evaluation criteria (the judgment framework)
+const CRITERIA = [
+  { key: 'global',     short: '글로벌 경력 활용', label: '해외영업/글로벌 경력을 살릴 수 있는가' },
+  { key: 'brand_flow', short: '브랜드 흐름',       label: '브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무가 아닌)' },
+  { key: 'small_org',  short: '중소기업 규모',     label: '중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능)' },
+  { key: 'startup',    short: '창업 연결',         label: '브랜드 창업 경험으로 연결되는 환경인가' },
+];
+
+const APPEAL_PRIORITY = `[어필 포인트 우선순위]
+1순위: 커뮤니케이션 / 협상력 / 스토리텔링 관련 경험
+2순위: 해외영업 + 브랜드 운영 교차 경험
+3순위: AI 툴 활용 + 자동화 구축 경험`;
+
+const SYSTEM_PROMPT = `커리어핏은 최지예님의 이직 판단을 돕는 커리어 전문가입니다.
+
+${PERSONA}
+
+핵심 원칙: 지원자도 회사를 고릅니다. 서로 맞아야 오래갑니다. 판단은 돕되, 결정은 본인이 합니다.
+모든 분석은 "이 회사가 최지예님의 K-뷰티 브랜드 창업 여정에 도움이 되는가" 관점으로 합니다.
+
 반드시 JSON만 응답하세요. 설명, 마크다운, 코드블록 없이 순수 JSON만.`;
 
 /* ============================================================
@@ -940,7 +986,7 @@ function renderJdTab(){
   document.getElementById('historySection').classList.remove('hidden');
 
   document.getElementById('stripSummary').textContent = state.profile.summary;
-  document.getElementById('stripMust').textContent = (state.profile.must || []).join(' · ');
+  document.getElementById('stripMust').textContent = '판단 기준: ' + CRITERIA.map(c => c.short).join(' · ');
 
   renderHistory();
   showJdInput();
@@ -952,34 +998,41 @@ function showJdInput(){
   document.getElementById('jdHeader').classList.remove('hidden');
 }
 
+function computeVerdict(criteria){
+  const met = (criteria || []).filter(c => c.met).length;
+  if (met >= 4) return '지원 추천';
+  if (met === 3) return '검토 필요';
+  return '패스';
+}
+
+function verdictMeta(verdict){
+  // map legacy values (지원/보류/패스) from old history too
+  if (verdict === '지원' || verdict === '지원 추천') return { v:'지원 추천', band:'verdict-green',  pill:'hist-pill-green',  icon:'✓' };
+  if (verdict === '보류' || verdict === '검토 필요') return { v:'검토 필요', band:'verdict-yellow', pill:'hist-pill-yellow', icon:'△' };
+  return { v:'패스', band:'verdict-gray', pill:'hist-pill-gray', icon:'✕' };
+}
+
+function resolveVerdict(item){
+  if (item.criteria && item.criteria.length) return computeVerdict(item.criteria);
+  return verdictMeta(item.verdict || '').v;
+}
+
 function showJdResult(result, fromHistory=false){
   document.getElementById('jdInputArea').classList.add('hidden');
   document.getElementById('jdResult').classList.remove('hidden');
   document.getElementById('jdHeader').classList.add('hidden');
 
-  const verdict = (result.verdict || '').trim();
+  const verdict = resolveVerdict(result);
+  const meta = verdictMeta(verdict);
+
+  // ---- verdict band: badge + company + missing ----
   const band = document.getElementById('verdictBand');
-  const icon = document.getElementById('verdictIcon');
   const label = document.getElementById('verdictLabel');
   const company = document.getElementById('verdictCompany');
-  const reason = document.getElementById('verdictReason');
+  const missing = document.getElementById('verdictMissing');
 
-  band.className = 'rounded-2xl px-7 py-7 mb-5';
-  if (verdict === '지원') {
-    band.classList.add('verdict-pass');
-    icon.textContent = '✓';
-    label.textContent = '지원';
-  } else if (verdict === '보류') {
-    band.classList.add('verdict-hold');
-    icon.textContent = '—';
-    label.textContent = '보류';
-  } else {
-    band.classList.add('verdict-skip');
-    icon.textContent = '×';
-    label.textContent = '패스';
-    icon.style.background = '#DFD6BD';
-  }
-  if (verdict !== '패스') icon.style.background = 'rgba(255,255,255,.22)';
+  band.className = 'rounded-2xl px-7 py-6 mb-4 ' + meta.band;
+  label.textContent = `${meta.icon} ${verdict}`;
 
   company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
   company.setAttribute('contenteditable', 'true');
@@ -989,61 +1042,92 @@ function showJdResult(result, fromHistory=false){
     const newText = company.textContent.trim();
     if (!newText) return;
     const parts = newText.split('·').map(s => s.trim());
-    const newCompany = parts[0] || result.company;
-    const newPosition = parts.slice(1).join(' · ') || '';
-    const item = state.history.find(h => h.id === result.id);
-    if (item) {
-      item.company = newCompany;
-      item.position = newPosition;
-      localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
-      renderHistory();
-    }
-    // also reflect in the current result reference for any further actions
-    result.company = newCompany;
-    result.position = newPosition;
+    result.company = parts[0] || result.company;
+    result.position = parts.slice(1).join(' · ') || '';
+    const it = state.history.find(h => h.id === result.id);
+    if (it) { it.company = result.company; it.position = result.position; localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history)); renderHistory(); }
   };
   company.onkeydown = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); company.blur(); }
     if (e.key === 'Escape') { company.blur(); }
   };
-  reason.textContent = result.verdict_reason || '';
 
-  // action buttons
+  const crit = result.criteria || [];
+  const miss = crit.filter(c => !c.met).map(c => c.label);
+  if (verdict === '검토 필요' && miss.length) {
+    missing.innerHTML = '부족한 항목 — ' + miss.map(m => `<b>${escapeHtml(m)}</b>`).join(' · ');
+    missing.classList.remove('hidden');
+  } else {
+    missing.classList.add('hidden');
+  }
+
+  // ---- brand connection (always) ----
+  document.getElementById('brandConnectionText').textContent = result.brand_connection || '(연결 정보 없음)';
+
+  // ---- criteria checklist ----
+  const critUl = document.getElementById('criteriaList');
+  critUl.innerHTML = '';
+  if (crit.length) {
+    crit.forEach(c => {
+      const li = document.createElement('li');
+      li.className = 'flex items-start gap-3 rounded-lg ' + (c.met ? '' : 'crit-row-no border px-3 py-2');
+      li.innerHTML = `
+        <span class="text-lg font-black flex-shrink-0 leading-tight ${c.met ? 'crit-yes' : 'crit-no'}">${c.met ? '✓' : '✕'}</span>
+        <div class="flex-1">
+          <div class="text-sm font-semibold ${c.met ? 'text-ink' : 'text-point'}">${escapeHtml(c.label)}</div>
+          ${c.note ? `<div class="text-[13px] text-mute leading-relaxed mt-0.5">${escapeHtml(c.note)}</div>` : ''}
+        </div>
+      `;
+      critUl.appendChild(li);
+    });
+    document.getElementById('criteriaCard').classList.remove('hidden');
+  } else {
+    document.getElementById('criteriaCard').classList.add('hidden');
+  }
+
+  // ---- helpers ----
+  const appealsCard = document.getElementById('appealsCard');
+  const guideCard = document.getElementById('resumeGuideCard');
+  function appealsToText(){ return (result.appeals || []).map((a, i) => `${i+1}. ${a}`).join('\n\n'); }
+  function makeBtn(label, kind, onClick){
+    const b = document.createElement('button');
+    b.className = (kind==='primary' ? 'btn-primary' : 'btn-outline') + ' rounded-lg px-5 py-3 font-semibold text-sm';
+    b.textContent = label; b.onclick = onClick; return b;
+  }
+  function showGuide(){
+    if (result.resume_guide) { document.getElementById('resumeGuideText').textContent = result.resume_guide; guideCard.classList.remove('hidden'); }
+    else guideCard.classList.add('hidden');
+  }
+
+  // ---- action buttons + visibility per verdict ----
   const actions = document.getElementById('actionRow');
   const hint = document.getElementById('actionHint');
   actions.innerHTML = '';
   hint.classList.add('hidden');
 
-  function appealsToText(){
-    return (result.appeals || []).map((a, i) => `${i+1}. ${a}`).join('\n\n');
-  }
-
-  function makeBtn(label, kind, onClick){
-    const b = document.createElement('button');
-    b.className = (kind==='primary' ? 'btn-primary' : 'btn-outline') + ' rounded-lg px-5 py-3 font-semibold text-sm';
-    b.textContent = label;
-    b.onclick = onClick;
-    return b;
-  }
-
-  if (verdict === '지원') {
+  if (verdict === '지원 추천') {
+    appealsCard.classList.remove('hidden'); showGuide();
     actions.appendChild(makeBtn('어필 포인트 전체 복사', 'primary', (e) => copyAll(e.currentTarget, appealsToText())));
     actions.appendChild(makeBtn('새 JD 분석하기', 'outline', resetJd));
-  } else if (verdict === '보류') {
+  } else if (verdict === '검토 필요') {
+    appealsCard.classList.remove('hidden'); showGuide();
     actions.appendChild(makeBtn('어필 포인트 미리 복사해두기', 'primary', (e) => copyAll(e.currentTarget, appealsToText())));
     actions.appendChild(makeBtn('새 JD 분석하기', 'outline', resetJd));
     hint.textContent = '마음이 바뀌면 히스토리에서 다시 볼 수 있어요';
     hint.classList.remove('hidden');
   } else {
+    // 패스 — 어필/가이드 기본 숨김
+    appealsCard.classList.add('hidden');
+    guideCard.classList.add('hidden');
     actions.appendChild(makeBtn('새 JD 분석하기', 'primary', resetJd));
     const link = document.createElement('button');
     link.className = 'btn-ghost rounded-lg px-3 py-3 text-sm underline';
-    link.textContent = '그래도 지원할게요 — 어필 포인트 복사';
-    link.onclick = (e) => copyAll(e.currentTarget, appealsToText());
+    link.textContent = '그래도 지원할게요 — 어필 포인트 보기';
+    link.onclick = () => { appealsCard.classList.remove('hidden'); showGuide(); link.remove(); };
     actions.appendChild(link);
   }
 
-  // appeals
+  // ---- appeals list ----
   document.getElementById('appealsCount').textContent = (result.appeals||[]).length;
   const appealsUl = document.getElementById('appealsList');
   appealsUl.innerHTML = '';
@@ -1052,16 +1136,14 @@ function showJdResult(result, fromHistory=false){
     li.className = 'flex items-start gap-3';
     li.innerHTML = `
       <span class="mt-0.5 w-6 h-6 rounded-full bg-ink text-bg flex items-center justify-center text-[11px] font-bold flex-shrink-0">${i+1}</span>
-      <div class="flex-1">
-        <div class="text-sm leading-relaxed text-ink">${escapeHtml(a)}</div>
-      </div>
+      <div class="flex-1"><div class="text-sm leading-relaxed text-ink">${escapeHtml(a)}</div></div>
       <button class="btn-outline rounded-md px-3 py-1 text-xs whitespace-nowrap">복사</button>
     `;
     li.querySelector('button').onclick = (e) => copyAll(e.currentTarget, a);
     appealsUl.appendChild(li);
   });
 
-  // gaps
+  // ---- gaps (positive tone) ----
   const gapsUl = document.getElementById('gapsList');
   gapsUl.innerHTML = '';
   (result.gaps || []).forEach((g) => {
@@ -1182,14 +1264,22 @@ Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
 
   const jsonSchema =
-`회사명 추출 규칙:
-- 명시된 회사명이 있으면 그대로 추출 (로고 텍스트, 헤더, 회사소개, URL 등 어디서든)
-- 없으면 회사를 식별할 수 있는 구체적인 한 줄 설명 (예: "K-뷰티 D2C 스타트업", "유럽 진출 글로벌 마케팅 에이전시", "B2B SaaS 시리즈A 스타트업")
-- "미상" 단독 사용은 정말 아무 정보도 없을 때만
-- 회사명 뒤에 "(미상)" 같은 부가 표기 절대 붙이지 말 것
+`이 채용공고를 아래 4대 기준으로 평가해줘. 각 기준은 충족(true)/미충족(false)과 근거 한 줄.
+
+[4대 기준]
+1. global: 해외영업/글로벌 경력을 살릴 수 있는가
+2. brand_flow: 브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무만이 아닌 것)
+3. small_org: 중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능한 구조)
+4. startup: 브랜드 창업 경험으로 연결되는 환경인가
+
+${APPEAL_PRIORITY}
+
+회사명 규칙: 명시된 회사명이 있으면 그대로. 없으면 식별 가능한 한 줄 설명 (예: "K-뷰티 D2C 스타트업"). "미상" 단독은 정말 정보가 없을 때만. "(미상)" 같은 부가표기 금지.
+
+갭/보완 작성 규칙: "~가 부족합니다"가 아니라 "~는 이렇게 커버 가능합니다" 처럼 반드시 커버 방법 중심의 긍정 톤으로.
 
 아래 형식의 JSON만 응답해줘:
-{"company":"회사명 또는 회사 특징 한 줄","position":"포지션명","verdict":"지원 또는 보류 또는 패스","verdict_reason":"판정 이유 2문장. 내 Must 기준 + JD 요건 기준 양방향으로.","appeals":["어필1 — 내 경력 증거 포함 완성 문장","어필2","어필3"],"gaps":[{"gap":"부족한 것","strategy":"이렇게 대응하면 됩니다"}]}`;
+{"company":"회사명 또는 특징 한 줄","position":"포지션명","criteria":[{"key":"global","met":true,"note":"근거 한 줄"},{"key":"brand_flow","met":false,"note":"근거 한 줄"},{"key":"small_org","met":true,"note":"근거 한 줄"},{"key":"startup","met":true,"note":"근거 한 줄"}],"brand_connection":"이 공고가 브랜드 창업 경험으로 어떻게 연결되는지 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에는 [○○ 경험]을 앞에 배치하세요 — 한 줄. 무역실무보다 브랜드 운영/마케팅 경험을 앞으로.","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
 
   let messages;
   if (state.jdMode === 'image') {
@@ -1216,14 +1306,20 @@ Must 조건: ${(p.must||[]).join(', ')}
   try {
     const data = await callClaude(messages, SYSTEM_PROMPT);
     const result = extractJson(data);
-    // normalize
+    // normalize criteria against the fixed 4-criteria framework
+    const criteria = CRITERIA.map(def => {
+      const found = (result.criteria || []).find(c => c.key === def.key);
+      return { key: def.key, label: def.label, met: !!(found && found.met), note: (found && found.note) || '' };
+    });
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       company: result.company || '미상',
       position: result.position || '',
-      verdict: result.verdict || '보류',
-      verdict_reason: result.verdict_reason || '',
+      criteria,
+      verdict: computeVerdict(criteria),
+      brand_connection: result.brand_connection || '',
       appeals: result.appeals || [],
+      resume_guide: result.resume_guide || '',
       gaps: result.gaps || [],
       analyzed_at: new Date().toISOString(),
     };
@@ -1258,13 +1354,14 @@ function renderHistory(){
   state.history.forEach((h) => {
     const row = document.createElement('button');
     row.className = 'hist-row w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg text-left';
-    const pillClass = h.verdict==='지원' ? 'hist-pill-pass' : h.verdict==='보류' ? 'hist-pill-hold' : 'hist-pill-skip';
+    const verdict = resolveVerdict(h);
+    const meta = verdictMeta(verdict);
     const date = new Date(h.analyzed_at);
     const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
     row.innerHTML = `
       <div class="flex items-center gap-3 min-w-0">
-        <span class="pill ${pillClass}">${escapeHtml(h.verdict)}</span>
-        <span class="text-sm font-semibold truncate">${escapeHtml(h.company || '미상')} · ${escapeHtml(h.position || '')}</span>
+        <span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span>
+        <span class="text-sm font-semibold truncate">${escapeHtml(h.company || '미상')}${h.position ? ' · ' + escapeHtml(h.position) : ''}</span>
       </div>
       <div class="flex items-center gap-2 text-mute text-xs whitespace-nowrap">
         <span>${dd}</span>
