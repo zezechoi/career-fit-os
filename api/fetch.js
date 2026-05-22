@@ -1,6 +1,53 @@
+import { lookup } from 'node:dns/promises';
+import net from 'node:net';
+
 export const config = {
   maxDuration: 30,
 };
+
+function isPrivateIp(ip) {
+  // IPv4
+  const m = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    if (a === 0 || a === 10 || a === 127) return true;          // this-network, private, loopback
+    if (a === 169 && b === 254) return true;                     // link-local + cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;            // private
+    if (a === 192 && b === 168) return true;                     // private
+    if (a === 100 && b >= 64 && b <= 127) return true;           // CGNAT
+    if (a >= 224) return true;                                   // multicast / reserved
+    return false;
+  }
+  // IPv6
+  const low = ip.toLowerCase().replace(/^\[|\]$/g, '');
+  if (low === '::1' || low === '::') return true;                // loopback / unspecified
+  if (low.startsWith('fc') || low.startsWith('fd')) return true; // unique local
+  if (low.startsWith('fe80')) return true;                       // link-local
+  if (low.startsWith('::ffff:')) return isPrivateIp(low.slice(7)); // IPv4-mapped
+  return false;
+}
+
+// throws if the host is internal / loopback / encoded-IP
+async function assertPublicHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) {
+    throw new Error('내부 주소는 허용되지 않아요.');
+  }
+  // raw IP literal
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) throw new Error('내부 IP는 허용되지 않아요.');
+    return;
+  }
+  // encoded IP (decimal like 2130706433, or hex like 0x7f000001)
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) {
+    throw new Error('허용되지 않는 주소 형식이에요.');
+  }
+  // resolve DNS and check the actual target IP
+  let address;
+  try { ({ address } = await lookup(host)); }
+  catch { throw new Error('도메인을 찾을 수 없어요.'); }
+  if (isPrivateIp(address)) throw new Error('내부 네트워크로 연결되는 주소는 허용되지 않아요.');
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -24,28 +71,39 @@ export default async function handler(req, res) {
   let parsed;
   try { parsed = new URL(url); }
   catch { return res.status(400).json({ error: { message: '올바른 URL 형식이 아니에요.' } }); }
-
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     return res.status(400).json({ error: { message: 'http:// 또는 https:// URL만 지원해요.' } });
   }
-  // basic SSRF defense — block internal/loopback hostnames
-  const host = parsed.hostname.toLowerCase();
-  const blocked = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1)/;
-  if (blocked.test(host) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)) {
-    return res.status(400).json({ error: { message: '내부 네트워크 주소는 허용되지 않아요.' } });
-  }
 
   try {
+    // follow redirects manually, re-validating the host at every hop
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
-    const upstream = await fetch(parsed.toString(), {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; CareerFitBot/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8',
-      },
-      signal: controller.signal,
-      redirect: 'follow',
-    });
+    let current = parsed;
+    let upstream;
+    let hops = 0;
+    while (true) {
+      await assertPublicHost(current.hostname);
+      upstream = await fetch(current.toString(), {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; CareerFitBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8',
+        },
+        signal: controller.signal,
+        redirect: 'manual',
+      });
+      const loc = upstream.headers.get('location');
+      if (upstream.status >= 300 && upstream.status < 400 && loc) {
+        if (++hops > 3) { clearTimeout(timer); return res.status(502).json({ error: { message: '리다이렉트가 너무 많아요.' } }); }
+        let next;
+        try { next = new URL(loc, current); }
+        catch { clearTimeout(timer); return res.status(502).json({ error: { message: '잘못된 리다이렉트 주소예요.' } }); }
+        if (!['http:', 'https:'].includes(next.protocol)) { clearTimeout(timer); return res.status(400).json({ error: { message: '허용되지 않는 리다이렉트예요.' } }); }
+        current = next;
+        continue;
+      }
+      break;
+    }
     clearTimeout(timer);
 
     if (!upstream.ok) {
@@ -61,10 +119,7 @@ export default async function handler(req, res) {
       const { done, value } = await reader.read();
       if (done) break;
       total += value.length;
-      if (total > MAX) {
-        reader.cancel();
-        break;
-      }
+      if (total > MAX) { reader.cancel(); break; }
       chunks.push(value);
     }
     const buf = new Uint8Array(total);

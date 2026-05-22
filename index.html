@@ -457,12 +457,30 @@ function loadAll(){
 }
 function saveProfile(p){
   state.profile = p;
-  localStorage.setItem(STORE.PROFILE, JSON.stringify(p));
+  try {
+    localStorage.setItem(STORE.PROFILE, JSON.stringify(p));
+  } catch (e) {
+    console.error('profile save failed', e);
+    alert('브라우저 저장 공간이 부족해 프로필 저장에 실패했어요. 분석 기록을 일부 정리하거나 이력서/링크 양을 줄여주세요.');
+  }
+}
+// persist history with quota fallback — drops oldest entries until it fits
+function saveHistory(){
+  while (state.history.length) {
+    try {
+      localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
+      return true;
+    } catch (e) {
+      if (state.history.length <= 1) { console.error('history save failed', e); return false; }
+      state.history.pop(); // array is newest-first → remove oldest
+    }
+  }
+  return false;
 }
 function saveHistoryItem(item){
   state.history.unshift(item);
   if (state.history.length > 50) state.history = state.history.slice(0, 50);
-  localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
+  saveHistory();
 }
 
 /* ============================================================
@@ -506,13 +524,24 @@ async function fetchUrl(url){
 function extractJson(data){
   let text = (data?.content?.[0]?.text || '').trim();
   text = text.replace(/```json|```/g, '').trim();
-  // try direct parse, otherwise extract first {...} block
-  try { return JSON.parse(text); }
-  catch {
-    const m = text.match(/\{[\s\S]*\}/);
-    if (m) return JSON.parse(m[0]);
-    throw new Error('PARSE_FAIL');
+  // drop any prose before the JSON object/array
+  const start = text.search(/[{[]/);
+  if (start > 0) text = text.slice(start);
+
+  // progressively more tolerant attempts
+  const candidates = [
+    text,
+    // raw control chars (literal newlines/tabs inside string values break JSON.parse)
+    text.replace(/[\u0000-\u001F]+/g, ' '),
+    // + strip trailing commas before } or ]
+    text.replace(/[\u0000-\u001F]+/g, ' ').replace(/,\s*([}\]])/g, '$1'),
+  ];
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch {}
+    const m = c.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch {} }
   }
+  throw new Error('PARSE_FAIL');
 }
 
 const PERSONA = `[지원자 — 최지예]
@@ -1080,7 +1109,7 @@ function showJdResult(result, fromHistory=false){
     result.company = parts[0] || result.company;
     result.position = parts.slice(1).join(' · ') || '';
     const it = state.history.find(h => h.id === result.id);
-    if (it) { it.company = result.company; it.position = result.position; localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history)); renderHistory(); }
+    if (it) { it.company = result.company; it.position = result.position; saveHistory(); renderHistory(); }
   };
   company.onkeydown = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); company.blur(); }
@@ -1324,7 +1353,7 @@ async function runDraftGeneration(){
     const draft = await generateResumeDraft(result);
     result.draft = draft;
     const it = state.history.find(h => h.id === result.id);
-    if (it) { it.draft = draft; localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history)); }
+    if (it) { it.draft = draft; saveHistory(); }
     renderDraft(draft);
   } catch (e) {
     console.error(e);
@@ -1506,6 +1535,8 @@ ${APPEAL_PRIORITY}
 
 갭/보완 작성 규칙: "~가 부족합니다"가 아니라 "~는 이렇게 커버 가능합니다" 처럼 반드시 커버 방법 중심의 긍정 톤으로.
 
+JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작은따옴표(')를 쓰고, 줄바꿈 없이 한 줄로 작성해줘. (파싱 오류 방지)
+
 아래 형식의 JSON만 응답해줘:
 {"company":"회사명 또는 특징 한 줄","position":"포지션명","cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},"criteria":[{"key":"global","met":true,"note":"근거 한 줄"},{"key":"brand_flow","met":false,"note":"근거 한 줄"},{"key":"small_org","met":true,"note":"근거 한 줄"},{"key":"startup","met":true,"note":"근거 한 줄"}],"brand_connection":"이 공고에서 브랜드 전체 흐름을 직접 경험할 수 있는지 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에는 [○○ 경험]을 앞에 배치하세요 — 한 줄. 무역실무보다 브랜드 운영/마케팅 경험을 앞으로.","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
 
@@ -1543,7 +1574,7 @@ ${APPEAL_PRIORITY}
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       company: result.company || '미상',
       position: result.position || '',
-      jd_text: state.jdMode === 'text' ? document.getElementById('jdText').value.trim() : '',
+      jd_text: state.jdMode === 'text' ? document.getElementById('jdText').value.trim().slice(0, 4000) : '',
       cosmetics: result.cosmetics || null,
       criteria,
       verdict: computeVerdict(criteria),
