@@ -83,6 +83,7 @@
   .crit-no  { color:#D9685C; }
   .crit-row-no { background:#241818; border-color:#4A2E2E; }
   .crit-row-part { background:#272314; border-color:#5A4E22; }
+  .src-tag { display:inline-block; font-size:.65rem; font-weight:600; color:#9AA3AE; border:1px solid #3F4552; border-radius:4px; padding:.02rem .3rem; vertical-align:middle; }
   /* cards with accent */
   .card-brand { background:#1C1C24; border:1px solid #3F4552; border-left:4px solid #2D9B6A; }
   .card-guide { background:#15211A; border:1px solid #2E4A3A; }
@@ -343,8 +344,12 @@
             <div class="text-[10px] tracking-widest text-mute mt-1">FIT</div>
           </div>
           <div class="flex-1 min-w-0">
-            <span id="verdictLabel" class="pill text-sm"></span>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="verdictLabel" class="pill text-sm"></span>
+              <span id="notRecTag" class="pill text-xs hidden" style="background:#3A1E1E;color:#E59A92;border:1px solid #6B3A3A">지원 비추천</span>
+            </div>
             <div id="verdictCompany" class="text-sm font-semibold text-sub mt-2"></div>
+            <div id="fitRationale" class="text-[13px] text-mute mt-1"></div>
           </div>
         </div>
         <div id="verdictMissing" class="text-sm mt-3 hidden leading-relaxed"></div>
@@ -364,7 +369,7 @@
 
       <!-- 4 CRITERIA CHECKLIST -->
       <div id="criteriaCard" class="card rounded-xl p-5 mb-4">
-        <h3 id="criteriaHeading" class="font-bold text-base mb-3">4대 기준 체크</h3>
+        <h3 id="criteriaHeading" class="font-bold text-base mb-3">핵심 기준 체크</h3>
         <ul id="criteriaList" class="space-y-2.5"></ul>
       </div>
 
@@ -415,10 +420,11 @@
       <p class="text-sub mt-2 text-sm">분석한 공고를 지원 단계별로 관리하세요.</p>
     </header>
     <div id="historySection">
-      <div class="flex items-center gap-2 mb-4">
+      <div class="flex items-center gap-2 mb-4 flex-wrap">
         <button id="histTab_recommend" type="button" class="hist-tab active" onclick="setHistoryFilter('recommend')">지원 추천 ✓ <span id="histCount_recommend" class="hist-tab-badge">0</span></button>
-        <button id="histTab_all" type="button" class="hist-tab" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
+        <button id="histTab_review" type="button" class="hist-tab" onclick="setHistoryFilter('review')">검토 필요 <span id="histCount_review" class="hist-tab-badge">0</span></button>
         <button id="histTab_pass" type="button" class="hist-tab" onclick="setHistoryFilter('pass')">패스 <span id="histCount_pass" class="hist-tab-badge">0</span></button>
+        <button id="histTab_all" type="button" class="hist-tab" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
       </div>
       <div id="historyTableWrap" class="overflow-x-auto hidden">
         <table class="board w-full" style="min-width:660px">
@@ -605,14 +611,23 @@ const CONFIG = {
     goal: '브랜드 전체를 직접 설계하고 운영하는 역량을 키우는 데 도움이 되는가',
   },
 
-  // ── JD 평가 기준 (개수·내용 자유. key는 영문 고유값, 서로 겹치지 않게) ──
+  // ── 핵심 평가 기준 (key는 영문 고유값. def=정의, basis=판단 근거, sources=출처 태그 후보) ──
   criteria: [
-    { key: 'global',     short: '글로벌 경력 활용', label: '해외영업/글로벌 경력을 살릴 수 있는가' },
-    { key: 'brand_flow', short: '브랜드 흐름',       label: '브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무가 아닌)' },
-    { key: 'small_org',  short: '중소기업 규모',     label: '중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능)' },
-    { key: 'startup',    short: '전체 흐름 경험',     label: '브랜드 전체 흐름을 직접 경험할 수 있는 환경인가' },
+    { key: 'job', short: '직무', label: '직무 적합',
+      def: '내 경력이 이 역할을 실제로 수행할 수 있는가',
+      basis: '스킬, 경험 연도, 담당 업무 범위',
+      sources: ['JD 기반', '프로필 기반'] },
+    { key: 'env', short: '환경', label: '환경 적합',
+      def: '이 회사의 규모·문화가 내 Must 조건과 맞는가',
+      basis: '팀 구조, 의사결정 방식, 문화 키워드',
+      sources: ['JD 기반', '추정'] },
+    { key: 'growth', short: '성장', label: '성장 적합',
+      def: '이 포지션이 내가 원하는 경험을 줄 수 있는가',
+      basis: '브랜드 전 사이클 경험 가능 여부, 글로벌 확장 관여 가능 여부',
+      sources: ['JD 기반', '추정'] },
   ],
-  // 판정: 전부 충족=지원 추천 / 1개 빼고 충족=검토 필요 / 그 외=패스 (자동)
+  // 점수: 적합=만점기여 / 부분 적합=0.6 / 미적합=0. 75+ 지원 추천, 60+ 검토 필요, 그 외 패스.
+  // 미적합 2개 이상 → 자동 '지원 비추천'.
 
   // ── 어필 포인트 우선순위 (위에서부터 1순위) ──
   appealPriority: [
@@ -1166,15 +1181,13 @@ function showJdInput(){
   document.getElementById('jdHeader').classList.remove('hidden');
 }
 
-// 기준별 점수: 적합 25 / 부분 적합 13 / 미적합 0 (레거시 met 보정)
-function critPoints(c){
-  if (c.level === '적합') return 25;
-  if (c.level === '부분 적합') return 13;
-  if (c.level === '미적합') return 0;
-  return c.met ? 25 : 0;
-}
-function critFull(c){ return c.level === '적합' || (c.level === undefined && c.met === true); }
+// 기준별 가중치: 적합 1.0 / 부분 적합 0.6 / 미적합 0
+function critWeight(c){ const lv = critLevel(c); return lv === '적합' ? 1 : lv === '부분 적합' ? 0.6 : 0; }
+function critFull(c){ return critLevel(c) === '적합'; }
 function critLevel(c){ return c.level || (c.met ? '적합' : '미적합'); }
+function countMijeokhap(crit){ return (crit || []).filter(c => critLevel(c) === '미적합').length; }
+function fitScoreFromCrit(crit){ return Math.round(crit.reduce((a, c) => a + critWeight(c), 0) / crit.length * 100); }
+function notRecommended(crit){ return countMijeokhap(crit) >= 2; }   // 미적합 2개 이상 → 지원 비추천
 function levelMeta(c){
   const lv = critLevel(c);
   if (lv === '적합')      return { icon:'✓', iconCls:'crit-yes',     labelCls:'text-ink', row:'' };
@@ -1185,9 +1198,10 @@ function levelMeta(c){
 function computeVerdict(criteria){
   const arr = criteria || [];
   if (!arr.length) return '패스';
-  const score = arr.reduce((a, c) => a + critPoints(c), 0) / (arr.length * 25) * 100;
+  if (notRecommended(arr)) return '패스';        // 미적합 2개 이상 → 패스(지원 비추천)
+  const score = fitScoreFromCrit(arr);
   if (score >= 75) return '지원 추천';
-  if (score >= 50) return '검토 필요';
+  if (score >= 60) return '검토 필요';
   return '패스';
 }
 
@@ -1226,6 +1240,13 @@ function showJdResult(result, fromHistory=false){
 
   label.className = 'pill ' + meta.pill;
   label.textContent = `${meta.icon} ${verdict}`;
+
+  // 미적합 2개 이상 → 지원 비추천 태그
+  document.getElementById('notRecTag').classList.toggle('hidden', !((result.criteria || []).length && notRecommended(result.criteria)));
+
+  // 근거 한 줄 (예: 직무 적합 · 환경 부분 적합 · 성장 미적합)
+  document.getElementById('fitRationale').textContent =
+    (result.criteria || []).map(c => `${c.label.replace(/\s*적합$/, '')} ${critLevel(c)}`).join(' · ');
 
   company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
   company.setAttribute('contenteditable', 'true');
@@ -1293,7 +1314,7 @@ function showJdResult(result, fromHistory=false){
       li.innerHTML = `
         <span class="text-lg font-black flex-shrink-0 leading-tight ${lm.iconCls}">${lm.icon}</span>
         <div class="flex-1">
-          <div class="text-sm font-semibold ${lm.labelCls}">${escapeHtml(c.label)} <span class="text-[11px] font-normal text-mute">· ${critLevel(c)}</span></div>
+          <div class="text-sm font-semibold ${lm.labelCls}">${escapeHtml(c.label)} <span class="text-[11px] font-normal text-mute">· ${critLevel(c)}</span>${c.source ? ` <span class="src-tag">[${escapeHtml(c.source)}]</span>` : ''}</div>
           ${c.note ? `<div class="text-[13px] text-mute leading-relaxed mt-0.5">${escapeHtml(c.note)}</div>` : ''}
         </div>
       `;
@@ -1663,8 +1684,10 @@ Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
 
   const N = CONFIG.criteria.length;
-  const critList = CONFIG.criteria.map((c, i) => `${i + 1}. ${c.key}: ${c.label}`).join('\n');
-  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","level":"적합","note":"근거 한 줄"}`).join(',');
+  const critList = CONFIG.criteria.map((c, i) =>
+    `${i + 1}. ${c.key} (${c.label}): ${c.def}\n   - 판단 근거: ${c.basis}\n   - source 값은 다음 중 하나만: ${c.sources.join(' / ')}`
+  ).join('\n');
+  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","level":"적합","source":"${c.sources[0]}","note":"근거 한 줄"}`).join(',');
   const rf = CONFIG.requirementFilter;
   const rfBlock = rf.enabled
     ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
@@ -1672,16 +1695,18 @@ Must 조건: ${(p.must||[]).join(', ')}
   const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
 
   const jsonSchema =
-`이 채용공고를 아래 ${N}대 기준으로 평가해줘. 각 기준은 적합도 level과 근거 한 줄.
+`이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 적합도 level, 출처 source, 근거 note.
 
-[${N}대 기준]
+[핵심 기준]
 ${critList}
 
-[기준별 level 판정 — 후하게 주지 말고 엄격하게]
+[level 판정 — 후하게 주지 말고 엄격하게]
 - "적합": 공고에서 명확히 충족된다고 확인되는 경우에만
 - "부분 적합": 일부만 해당되거나 추정/모호한 경우
 - "미적합": 해당 없거나 오히려 반대인 경우
-(대부분의 공고는 4개 모두 적합이 나오기 어렵습니다. 근거가 약하면 '부분 적합' 또는 '미적합'으로.)
+(3개 모두 적합이 나오기는 어렵습니다. 근거가 약하면 '부분 적합' 또는 '미적합'으로.)
+[source — 판단을 무엇에 근거했는지]
+- "JD 기반": 공고에 명시된 내용으로 판단 / "프로필 기반": 내 이력서·강점으로 판단 / "추정": 명시 안 됐지만 정황상 추정
 
 ${APPEAL_PRIORITY}
 ${rfBlock}
@@ -1725,7 +1750,9 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
       const found = (result.criteria || []).find(c => c.key === def.key);
       let level = found && found.level;
       if (!LEVELS.includes(level)) level = (found && found.met) ? '적합' : '미적합'; // 레거시 met 보정
-      return { key: def.key, label: def.label, level, note: (found && found.note) || '' };
+      let source = found && found.source;
+      if (!(def.sources || []).includes(source)) source = (def.sources && def.sources[0]) || '';
+      return { key: def.key, label: def.label, level, source, note: (found && found.note) || '' };
     });
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -1768,9 +1795,9 @@ function normStatus(s){ return STATUS_FLOW.includes(s) ? s : '지원 전'; }
 // FIT 점수 = 기준별 점수 합(적합25/부분13/미적합0) → 0~100. 옛 기록은 판정으로 추정.
 function fitScore(item){
   const crit = item.criteria || [];
-  if (crit.length) return Math.round(crit.reduce((a, c) => a + critPoints(c), 0) / (crit.length * 25) * 100);
+  if (crit.length) return fitScoreFromCrit(crit);
   const v = resolveVerdict(item);
-  return v === '지원 추천' ? 90 : v === '검토 필요' ? 60 : 25;
+  return v === '지원 추천' ? 90 : v === '검토 필요' ? 67 : 40;
 }
 
 function setHistoryFilter(f){
@@ -1785,18 +1812,21 @@ function renderHistory(){
   body.innerHTML = '';
 
   const all = state.history;
-  const recommend = all.filter(h => resolveVerdict(h) === '지원 추천');
-  const pass = all.filter(h => resolveVerdict(h) === '패스');
+  const recommend = all.filter(h => resolveVerdict(h) === '지원 추천');  // 75+
+  const review = all.filter(h => resolveVerdict(h) === '검토 필요');     // 60~74
+  const pass = all.filter(h => resolveVerdict(h) === '패스');            // <60 또는 미적합 2+
   document.getElementById('histCount_all').textContent = all.length;
   document.getElementById('histCount_recommend').textContent = recommend.length;
+  document.getElementById('histCount_review').textContent = review.length;
   document.getElementById('histCount_pass').textContent = pass.length;
 
   const filter = state.historyFilter || 'recommend';
   document.getElementById('histTab_recommend').className = 'hist-tab' + (filter === 'recommend' ? ' active' : '');
-  document.getElementById('histTab_all').className = 'hist-tab' + (filter === 'all' ? ' active' : '');
+  document.getElementById('histTab_review').className = 'hist-tab' + (filter === 'review' ? ' active' : '');
   document.getElementById('histTab_pass').className = 'hist-tab' + (filter === 'pass' ? ' active' : '');
+  document.getElementById('histTab_all').className = 'hist-tab' + (filter === 'all' ? ' active' : '');
 
-  const items = filter === 'recommend' ? recommend : filter === 'pass' ? pass : all;
+  const items = filter === 'recommend' ? recommend : filter === 'review' ? review : filter === 'pass' ? pass : all;
 
   if (!items.length) {
     wrap.classList.add('hidden');
@@ -1804,6 +1834,7 @@ function renderHistory(){
     empty.textContent = all.length === 0
       ? '아직 분석한 공고가 없어요'
       : filter === 'recommend' ? '지원 추천 공고가 아직 없어요'
+      : filter === 'review' ? '검토 필요 공고가 없어요'
       : filter === 'pass' ? '패스한 공고가 없어요' : '기록이 없어요';
     return;
   }
@@ -1884,7 +1915,6 @@ function renderHistory(){
 function init(){
   // apply CONFIG-driven UI text
   document.getElementById('brandConnectionQuestion').textContent = CONFIG.connectionQuestion;
-  document.getElementById('criteriaHeading').textContent = CONFIG.criteria.length + '대 기준 체크';
 
   loadAll();
   renderReasonChips();
