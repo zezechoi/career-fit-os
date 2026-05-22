@@ -159,17 +159,18 @@
     </div>
     <div class="text-[11px] text-mute hide-mobile" id="profileBadgeNav"></div>
   </div>
-  <div class="max-w-3xl mx-auto nav-wrap px-6 flex gap-8 text-sm">
-    <button id="tabBtn1" class="py-3 tab-active" onclick="switchTab(1)">온보딩</button>
-    <button id="tabBtn2" class="py-3 tab-inactive" onclick="switchTab(2)">JD 분석기</button>
+  <div class="max-w-3xl mx-auto nav-wrap px-6 flex gap-6 text-sm">
+    <button id="tabBtn1" class="py-3 tab-active" onclick="switchTab(1)">공고 판단</button>
+    <button id="tabBtn2" class="py-3 tab-inactive" onclick="switchTab(2)">지원 현황</button>
+    <button id="tabBtn3" class="py-3 tab-inactive" onclick="switchTab(3)">내 기준</button>
   </div>
 </nav>
 
 <!-- ============== MAIN ============== -->
 <main class="max-w-3xl mx-auto px-6 py-8 pb-24">
 
-  <!-- ============== TAB 1 · ONBOARDING ============== -->
-  <section id="tab1" class="">
+  <!-- ============== TAB 3 · 내 기준 (ONBOARDING) ============== -->
+  <section id="tab3" class="hidden">
 
     <!-- HEADER -->
     <header class="mb-8">
@@ -281,8 +282,8 @@
 
   </section>
 
-  <!-- ============== TAB 2 · JD ANALYZER ============== -->
-  <section id="tab2" class="hidden">
+  <!-- ============== TAB 1 · 공고 판단 (JD ANALYZER) ============== -->
+  <section id="tab1" class="">
 
     <!-- PROFILE STRIP -->
     <div id="profileStrip" class="card rounded-xl p-4 mb-6 hidden">
@@ -299,7 +300,7 @@
     <div id="needProfileMsg" class="card rounded-xl p-6 mb-6 text-center hidden">
       <div class="font-semibold mb-2">먼저 프로필을 만들어주세요</div>
       <div class="text-sm text-sub mb-4">이력서 한 번만 입력하면 JD 분석이 가능해요.</div>
-      <button class="btn-primary rounded-lg px-5 py-2.5 text-sm font-semibold" onclick="switchTab(1)">온보딩으로 가기</button>
+      <button class="btn-primary rounded-lg px-5 py-2.5 text-sm font-semibold" onclick="switchTab(3)">내 기준 설정하러 가기</button>
     </div>
 
     <!-- HEADER -->
@@ -399,14 +400,20 @@
       </details>
     </div>
 
-    <!-- RECRUITMENT STATUS BOARD -->
-    <div id="historySection" class="mt-12">
-      <div class="divider mb-6"></div>
-      <h2 class="text-lg font-bold mb-1">채용 현황</h2>
-      <p class="text-xs text-mute mb-4">공고 발견 → 판단 → 이력서 초안 → 지원 → 현황까지 한 곳에서</p>
+  </section>
+
+  <!-- ============== TAB 2 · 지원 현황 (STATUS BOARD) ============== -->
+  <section id="tab2" class="hidden">
+    <header class="mb-6">
+      <div class="text-xs tracking-widest text-mute mb-2">STATUS · BOARD</div>
+      <h1 class="text-3xl font-bold leading-tight">지원 현황</h1>
+      <p class="text-sub mt-2 text-sm">분석한 공고를 지원 단계별로 관리하세요.</p>
+    </header>
+    <div id="historySection">
       <div class="flex items-center gap-2 mb-4">
-        <button id="histTab_all" type="button" class="hist-tab active" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
-        <button id="histTab_recommend" type="button" class="hist-tab" onclick="setHistoryFilter('recommend')">지원 추천 ✓ <span id="histCount_recommend" class="hist-tab-badge">0</span></button>
+        <button id="histTab_recommend" type="button" class="hist-tab active" onclick="setHistoryFilter('recommend')">지원 추천 ✓ <span id="histCount_recommend" class="hist-tab-badge">0</span></button>
+        <button id="histTab_all" type="button" class="hist-tab" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
+        <button id="histTab_pass" type="button" class="hist-tab" onclick="setHistoryFilter('pass')">패스 <span id="histCount_pass" class="hist-tab-badge">0</span></button>
       </div>
       <div id="historyTableWrap" class="overflow-x-auto hidden">
         <table class="board w-full" style="min-width:660px">
@@ -418,9 +425,8 @@
           <tbody id="historyBody"></tbody>
         </table>
       </div>
-      <div id="historyEmpty" class="text-sm text-mute text-center py-8 hidden">아직 분석 기록이 없어요</div>
+      <div id="historyEmpty" class="text-sm text-mute text-center py-8 hidden">아직 분석한 공고가 없어요</div>
     </div>
-
   </section>
 </main>
 
@@ -461,7 +467,7 @@ let state = {
   apiKey: null,       // holds the access password
   profile: null,
   history: [],
-  historyFilter: 'all',
+  historyFilter: 'recommend',
   reasonSelected: null,
   resumeMode: 'text',
   resumeFiles: [],    // [{ name, text }]
@@ -703,12 +709,13 @@ document.getElementById('apiKeyInput').addEventListener('keydown', (e) => {
 ============================================================ */
 function switchTab(n){
   state.tab = n;
-  document.getElementById('tab1').classList.toggle('hidden', n !== 1);
-  document.getElementById('tab2').classList.toggle('hidden', n !== 2);
-  document.getElementById('tabBtn1').className = 'py-3 ' + (n===1 ? 'tab-active':'tab-inactive');
-  document.getElementById('tabBtn2').className = 'py-3 ' + (n===2 ? 'tab-active':'tab-inactive');
-  if (n === 2) renderJdTab();
-  if (n === 1) renderOnboardingTab();
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById('tab' + i).classList.toggle('hidden', n !== i);
+    document.getElementById('tabBtn' + i).className = 'py-3 ' + (n === i ? 'tab-active' : 'tab-inactive');
+  }
+  if (n === 1) renderJdTab();         // 공고 판단
+  if (n === 2) renderStatusTab();     // 지원 현황
+  if (n === 3) renderOnboardingTab(); // 내 기준
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -933,7 +940,7 @@ document.getElementById('onbSaveDone').addEventListener('click', () => {
   };
   saveProfile(updated);
   document.getElementById('profileBadgeNav').textContent = updated.summary;
-  switchTab(2);
+  switchTab(1);  // 저장 후 공고 판단으로
 });
 
 document.getElementById('onbBackToForm').addEventListener('click', () => {
@@ -942,8 +949,8 @@ document.getElementById('onbBackToForm').addEventListener('click', () => {
 });
 
 function editProfile(){
-  switchTab(1);
-  // when arriving from Tab 2's "프로필 수정", jump straight into form mode
+  switchTab(3);  // 내 기준 탭
+  // "프로필 수정" 진입 시 바로 폼 모드로
   showForm();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -1115,19 +1122,20 @@ function renderJdTab(){
     document.getElementById('jdHeader').classList.add('hidden');
     document.getElementById('jdInputArea').classList.add('hidden');
     document.getElementById('jdResult').classList.add('hidden');
-    document.getElementById('historySection').classList.add('hidden');
     return;
   }
   document.getElementById('needProfileMsg').classList.add('hidden');
   document.getElementById('profileStrip').classList.remove('hidden');
   document.getElementById('jdHeader').classList.remove('hidden');
-  document.getElementById('historySection').classList.remove('hidden');
 
   document.getElementById('stripSummary').textContent = state.profile.summary;
   document.getElementById('stripMust').textContent = '판단 기준: ' + CRITERIA.map(c => c.short).join(' · ');
 
+  showJdInput();   // 열면 입력창 바로
+}
+
+function renderStatusTab(){
   renderHistory();
-  showJdInput();
 }
 
 function showJdInput(){
@@ -1588,7 +1596,7 @@ function resizeImageIfNeeded(file, maxDim){
    JD ANALYZE
 ============================================================ */
 document.getElementById('jdAnalyze').addEventListener('click', async () => {
-  if (!state.profile) { switchTab(1); return; }
+  if (!state.profile) { switchTab(3); return; }  // 프로필 없으면 내 기준으로
   const err = document.getElementById('jdError');
   err.classList.add('hidden');
   if (!state.apiKey) { showKeyOverlay(); return; }
@@ -1718,21 +1726,25 @@ function renderHistory(){
 
   const all = state.history;
   const recommend = all.filter(h => resolveVerdict(h) === '지원 추천');
+  const pass = all.filter(h => resolveVerdict(h) === '패스');
   document.getElementById('histCount_all').textContent = all.length;
   document.getElementById('histCount_recommend').textContent = recommend.length;
+  document.getElementById('histCount_pass').textContent = pass.length;
 
-  const filter = state.historyFilter || 'all';
-  document.getElementById('histTab_all').className = 'hist-tab' + (filter === 'all' ? ' active' : '');
+  const filter = state.historyFilter || 'recommend';
   document.getElementById('histTab_recommend').className = 'hist-tab' + (filter === 'recommend' ? ' active' : '');
+  document.getElementById('histTab_all').className = 'hist-tab' + (filter === 'all' ? ' active' : '');
+  document.getElementById('histTab_pass').className = 'hist-tab' + (filter === 'pass' ? ' active' : '');
 
-  const items = filter === 'recommend' ? recommend : all;
+  const items = filter === 'recommend' ? recommend : filter === 'pass' ? pass : all;
 
   if (!items.length) {
     wrap.classList.add('hidden');
     empty.classList.remove('hidden');
     empty.textContent = all.length === 0
       ? '아직 분석한 공고가 없어요'
-      : (filter === 'recommend' ? '지원 추천 공고가 아직 없어요' : '기록이 없어요');
+      : filter === 'recommend' ? '지원 추천 공고가 아직 없어요'
+      : filter === 'pass' ? '패스한 공고가 없어요' : '기록이 없어요';
     return;
   }
   empty.classList.add('hidden');
@@ -1745,7 +1757,8 @@ function renderHistory(){
     const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
     const score = fitScore(h);
     const status = h.status || '분석 완료';
-    const fadedCls = verdict === '패스' ? ' faded' : '';
+    // 패스는 흐리게 (단, 패스 전용 필터에서는 또렷하게)
+    const fadedCls = (verdict === '패스' && filter !== 'pass') ? ' faded' : '';
 
     // main row
     const tr = document.createElement('tr');
@@ -1774,7 +1787,7 @@ function renderHistory(){
       saveHistory();
     };
     tr.querySelector('td[data-status]').appendChild(sel);
-    tr.onclick = () => showJdResult(h, true);
+    tr.onclick = () => { switchTab(1); showJdResult(h, true); };  // 공고 판단 탭에서 상세 표시
 
     // memo sub-row
     const trMemo = document.createElement('tr');
@@ -1808,9 +1821,9 @@ function init(){
   renderReasonChips();
   if (!state.apiKey) showKeyOverlay();
   if (state.profile) {
-    switchTab(2);
+    switchTab(1);   // 프로필 있으면 공고 판단(기본)
   } else {
-    renderOnboardingTab();
+    switchTab(3);   // 없으면 내 기준부터
   }
 }
 
