@@ -333,7 +333,10 @@
 
     <!-- JD RESULT -->
     <div id="jdResult" class="hidden">
-      <button id="jdBack" class="text-sm text-mute hover:text-ink mb-4">← 새 JD 분석하기</button>
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <button id="jdBack" class="text-sm text-mute hover:text-ink">← 새 JD 분석하기</button>
+        <button id="reanalyzeBtn" class="text-sm text-mute hover:text-ink whitespace-nowrap">↻ 새 기준으로 재분석</button>
+      </div>
 
       <!-- FIT SUMMARY (hero) -->
       <div id="fitSummary" class="card rounded-2xl p-6 mb-4">
@@ -430,7 +433,7 @@
         <table class="board w-full" style="min-width:660px">
           <thead>
             <tr>
-              <th>회사명</th><th>직무</th><th>FIT</th><th>판정</th><th>상태</th><th>날짜</th>
+              <th>회사명</th><th>직무</th><th id="fitHeader" style="cursor:pointer; user-select:none" onclick="toggleFitSort()">FIT <span id="fitSortArrow">▼</span></th><th>판정</th><th>상태</th><th>분석일</th>
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
@@ -479,6 +482,7 @@ let state = {
   profile: null,
   history: [],
   historyFilter: 'recommend',
+  historySort: 'fit_desc',   // FIT 높은 순 기본
   reasonSelected: null,
   resumeMode: 'text',
   resumeFiles: [],    // [{ name, text }]
@@ -1225,6 +1229,12 @@ function showJdResult(result, fromHistory=false){
   document.getElementById('jdHeader').classList.add('hidden');
   currentJdResult = result;
 
+  // 새 기준으로 재분석 버튼
+  const reBtn = document.getElementById('reanalyzeBtn');
+  reBtn.disabled = false;
+  reBtn.textContent = '↻ 새 기준으로 재분석';
+  reBtn.onclick = () => reanalyzeItem(result);
+
   const verdict = resolveVerdict(result);
   const meta = verdictMeta(verdict);
 
@@ -1667,23 +1677,18 @@ function resizeImageIfNeeded(file, maxDim){
 }
 
 /* ============================================================
-   JD ANALYZE
+   JD ANALYZE (shared builders for analyze + re-analyze)
 ============================================================ */
-document.getElementById('jdAnalyze').addEventListener('click', async () => {
-  if (!state.profile) { switchTab(3); return; }  // 프로필 없으면 내 기준으로
-  const err = document.getElementById('jdError');
-  err.classList.add('hidden');
-  if (!state.apiKey) { showKeyOverlay(); return; }
-
-  const p = state.profile;
-  const profileText =
-`내 프로필:
-포지셔닝: ${p.summary}
+function buildProfileText(){
+  const p = state.profile || {};
+  return `내 프로필:
+포지셔닝: ${p.summary || ''}
 핵심 강점: ${(p.strengths||[]).join(', ')}
 Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
+}
 
-  const N = CONFIG.criteria.length;
+function buildJsonSchema(){
   const critList = CONFIG.criteria.map((c, i) =>
     `${i + 1}. ${c.key} (${c.label}): ${c.def}\n   - 판단 근거: ${c.basis}\n   - source 값은 다음 중 하나만: ${c.sources.join(' / ')}`
   ).join('\n');
@@ -1693,9 +1698,7 @@ Must 조건: ${(p.must||[]).join(', ')}
     ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
     : '';
   const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
-
-  const jsonSchema =
-`이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 적합도 level, 출처 source, 근거 note.
+  return `이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 적합도 level, 출처 source, 근거 note.
 
 [핵심 기준]
 ${critList}
@@ -1718,6 +1721,65 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
 
 아래 형식의 JSON만 응답해줘:
 {"company":"회사명 또는 특징 한 줄","position":"포지션명",${rfJson}"criteria":[${critJson}],"brand_connection":"${CONFIG.connectionField}","risk":"이 공고 지원 시 가장 큰 리스크/주의점 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에 맞춰 어떤 경험을 앞에 배치할지 한 줄. ${CONFIG.resumeGuideHint}","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
+}
+
+// raw AI result → normalized analysis fields (현재 핵심 기준 기준)
+function normalizeResult(result){
+  const LEVELS = ['적합', '부분 적합', '미적합'];
+  const criteria = CRITERIA.map(def => {
+    const found = (result.criteria || []).find(c => c.key === def.key);
+    let level = found && found.level;
+    if (!LEVELS.includes(level)) level = (found && found.met) ? '적합' : '미적합';
+    let source = found && found.source;
+    if (!(def.sources || []).includes(source)) source = (def.sources && def.sources[0]) || '';
+    return { key: def.key, label: def.label, level, source, note: (found && found.note) || '' };
+  });
+  return {
+    company: result.company || '미상',
+    position: result.position || '',
+    cosmetics: result.cosmetics || null,
+    criteria,
+    verdict: computeVerdict(criteria),
+    brand_connection: result.brand_connection || '',
+    risk: result.risk || '',
+    appeals: result.appeals || [],
+    resume_guide: result.resume_guide || '',
+    gaps: result.gaps || [],
+  };
+}
+
+// 저장된 텍스트 공고(jd_text)를 현재 핵심 기준으로 재분석 → 항목 덮어쓰기 (id/상태/메모 유지)
+async function reanalyzeItem(item){
+  if (!state.profile) { switchTab(3); return; }
+  if (!state.apiKey) { showKeyOverlay(); return; }
+  if (!item.jd_text) {
+    alert('이 공고는 이미지로 분석돼서 원본이 저장되지 않았어요.\n"새 JD 분석하기"로 이미지를 다시 올려 분석해 주세요.');
+    return;
+  }
+  const btn = document.getElementById('reanalyzeBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 재분석 중...'; }
+  try {
+    const messages = [{ role: 'user', content: `${buildProfileText()}\n\n채용공고: ${item.jd_text}\n\n${buildJsonSchema()}` }];
+    const result = deepDecode(extractJson(await callClaude(messages, SYSTEM_PROMPT)));
+    Object.assign(item, normalizeResult(result), { analyzed_at: new Date().toISOString(), draft: undefined });
+    saveHistory();
+    showJdResult(item);
+    renderHistory();
+  } catch (e) {
+    console.error(e);
+    alert('재분석 중 오류가 생겼어요. 잠시 후 다시 시도해주세요.\n(' + e.message + ')');
+    if (btn) { btn.disabled = false; btn.textContent = '↻ 새 기준으로 재분석'; }
+  }
+}
+
+document.getElementById('jdAnalyze').addEventListener('click', async () => {
+  if (!state.profile) { switchTab(3); return; }  // 프로필 없으면 내 기준으로
+  const err = document.getElementById('jdError');
+  err.classList.add('hidden');
+  if (!state.apiKey) { showKeyOverlay(); return; }
+
+  const profileText = buildProfileText();
+  const jsonSchema = buildJsonSchema();
 
   let messages;
   if (state.jdMode === 'image') {
@@ -1742,31 +1804,11 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
   btn.innerHTML = '<span class="spinner"></span> 분석 중...';
 
   try {
-    const data = await callClaude(messages, SYSTEM_PROMPT);
-    const result = deepDecode(extractJson(data));
-    // normalize criteria against the fixed framework (3-level: 적합/부분 적합/미적합)
-    const LEVELS = ['적합', '부분 적합', '미적합'];
-    const criteria = CRITERIA.map(def => {
-      const found = (result.criteria || []).find(c => c.key === def.key);
-      let level = found && found.level;
-      if (!LEVELS.includes(level)) level = (found && found.met) ? '적합' : '미적합'; // 레거시 met 보정
-      let source = found && found.source;
-      if (!(def.sources || []).includes(source)) source = (def.sources && def.sources[0]) || '';
-      return { key: def.key, label: def.label, level, source, note: (found && found.note) || '' };
-    });
+    const result = deepDecode(extractJson(await callClaude(messages, SYSTEM_PROMPT)));
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      company: result.company || '미상',
-      position: result.position || '',
+      ...normalizeResult(result),
       jd_text: state.jdMode === 'text' ? document.getElementById('jdText').value.trim().slice(0, 4000) : '',
-      cosmetics: result.cosmetics || null,
-      criteria,
-      verdict: computeVerdict(criteria),
-      brand_connection: result.brand_connection || '',
-      risk: result.risk || '',
-      appeals: result.appeals || [],
-      resume_guide: result.resume_guide || '',
-      gaps: result.gaps || [],
       status: '지원 전',
       memo: '',
       analyzed_at: new Date().toISOString(),
@@ -1802,6 +1844,10 @@ function fitScore(item){
 
 function setHistoryFilter(f){
   state.historyFilter = f;
+  renderHistory();
+}
+function toggleFitSort(){
+  state.historySort = state.historySort === 'fit_asc' ? 'fit_desc' : 'fit_asc';
   renderHistory();
 }
 
@@ -1841,7 +1887,13 @@ function renderHistory(){
   empty.classList.add('hidden');
   wrap.classList.remove('hidden');
 
-  items.forEach((h) => {
+  // FIT 정렬 (헤더 토글)
+  const dir = state.historySort === 'fit_asc' ? 1 : -1;
+  const arrow = document.getElementById('fitSortArrow');
+  if (arrow) arrow.textContent = state.historySort === 'fit_asc' ? '▲' : '▼';
+  const sorted = items.slice().sort((a, b) => (fitScore(a) - fitScore(b)) * dir);
+
+  sorted.forEach((h) => {
     const verdict = resolveVerdict(h);
     const meta = verdictMeta(verdict);
     const date = new Date(h.analyzed_at);
@@ -1855,8 +1907,8 @@ function renderHistory(){
     const tr = document.createElement('tr');
     tr.className = 'board-row' + fadedCls;
     tr.innerHTML = `
-      <td><button type="button" class="company-link font-semibold text-ink text-left hover:underline"><span class="block max-w-[150px] truncate">${escapeHtml(h.company || '미상')}</span></button></td>
-      <td class="text-sub"><div class="max-w-[120px] truncate">${escapeHtml(h.position || '-')}</div></td>
+      <td><button type="button" class="company-link font-semibold text-ink text-left hover:underline" title="${escapeHtml(h.company || '미상')}"><span class="block max-w-[150px] truncate">${escapeHtml(h.company || '미상')}</span></button></td>
+      <td class="text-sub"><div class="max-w-[120px] truncate" title="${escapeHtml(h.position || '-')}">${escapeHtml(h.position || '-')}</div></td>
       <td><span class="fit-badge fit-neutral">${score}</span></td>
       <td><span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span></td>
       <td data-status></td>
