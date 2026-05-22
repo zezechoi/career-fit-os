@@ -1721,9 +1721,11 @@ const STATUS_FLOW = ['분석 완료', '지원 예정', '지원 완료', '서류 
 function statusClass(s){
   if (s === '최종 합격') return 'st-final';
   if (s === '불합격') return 'st-reject';
-  if (!s || s === '분석 완료') return '';
-  return 'st-active'; // 지원 예정/완료, 서류 합격, 면접 예정
+  if (s === '지원 예정' || s === '지원 완료' || s === '서류 합격' || s === '면접 예정') return 'st-active';
+  return ''; // 분석 완료 + 알 수 없는 레거시 값 → 회색
 }
+// 레거시/미지원 상태값은 '분석 완료'로 정규화
+function normStatus(s){ return STATUS_FLOW.includes(s) ? s : '분석 완료'; }
 // FIT 점수 = 충족 기준 비율(0~100). 옛 기록은 판정으로 추정.
 function fitScore(item){
   const crit = item.criteria || [];
@@ -1775,7 +1777,7 @@ function renderHistory(){
     const date = new Date(h.analyzed_at);
     const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
     const score = fitScore(h);
-    const status = h.status || '분석 완료';
+    const status = normStatus(h.status);
     // 패스는 흐리게 (단, 패스 전용 필터에서는 또렷하게)
     const fadedCls = (verdict === '패스' && filter !== 'pass') ? ' faded' : '';
 
