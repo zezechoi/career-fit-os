@@ -106,6 +106,22 @@
   .hist-tab:hover { border-color:#241A14; }
   .hist-tab.active { background:#241A14; color:#F8F5EC; border-color:#241A14; }
   .hist-tab-badge { font-size:.7rem; opacity:.85; }
+  /* Status board table */
+  .board { border-collapse: collapse; }
+  .board thead th { text-align:left; font-size:.72rem; font-weight:700; color:#8B7D6A; padding:.5rem .6rem; border-bottom:1.5px solid #DFD6BD; white-space:nowrap; }
+  .board td { padding:.5rem .6rem; vertical-align:middle; }
+  .board-row { cursor:pointer; transition: background .12s ease; }
+  .board-row:hover, .board-row:hover + .board-memo { background:#F2EBD8; }
+  .board-memo td { border-bottom:1px solid #EFE9D6; padding-top:0; padding-bottom:.6rem; }
+  .board .faded { opacity:.45; }
+  .fit-badge { display:inline-block; min-width:40px; text-align:center; font-weight:800; font-size:.78rem; padding:.15rem .35rem; border-radius:6px; }
+  .status-select { background:#FDFBF4; border:1px solid #DFD6BD; color:#564A3D; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
+  .status-select.st-active { border-color:#B25E3F; color:#B25E3F; }
+  .status-select.st-final  { border-color:#3E7C5A; color:#3E7C5A; background:#EAF3EC; }
+  .status-select.st-reject { border-color:#B0A48E; color:#8B7D6A; }
+  .memo-input { width:100%; background:transparent; border:none; border-bottom:1px dashed #DFD6BD; font-size:.75rem; color:#564A3D; padding:.15rem 0; }
+  .memo-input::placeholder { color:#B6A88E; }
+  .memo-input:focus { outline:none; border-bottom-color:#241A14; }
   /* Top nav */
   .nav-shadow { box-shadow: 0 1px 0 #DFD6BD; }
   @media (max-width: 768px) {
@@ -336,13 +352,13 @@
 
       <!-- BRAND CONNECTION (always shown) -->
       <div id="brandConnectionCard" class="card-brand rounded-xl p-5 mb-4">
-        <div class="text-sm font-bold mb-1.5">이 공고, 브랜드 전체 흐름을 직접 경험할 수 있나요?</div>
+        <div id="brandConnectionQuestion" class="text-sm font-bold mb-1.5">이 공고, 브랜드 전체 흐름을 직접 경험할 수 있나요?</div>
         <div class="text-[15px] text-sub leading-relaxed">→ <span id="brandConnectionText"></span></div>
       </div>
 
       <!-- 4 CRITERIA CHECKLIST -->
       <div id="criteriaCard" class="card rounded-xl p-5 mb-4">
-        <h3 class="font-bold text-base mb-3">4대 기준 체크</h3>
+        <h3 id="criteriaHeading" class="font-bold text-base mb-3">4대 기준 체크</h3>
         <ul id="criteriaList" class="space-y-2.5"></ul>
       </div>
 
@@ -383,15 +399,25 @@
       </details>
     </div>
 
-    <!-- HISTORY -->
+    <!-- RECRUITMENT STATUS BOARD -->
     <div id="historySection" class="mt-12">
       <div class="divider mb-6"></div>
-      <h2 class="text-lg font-bold mb-3">분석 기록</h2>
+      <h2 class="text-lg font-bold mb-1">채용 현황</h2>
+      <p class="text-xs text-mute mb-4">공고 발견 → 판단 → 이력서 초안 → 지원 → 현황까지 한 곳에서</p>
       <div class="flex items-center gap-2 mb-4">
         <button id="histTab_all" type="button" class="hist-tab active" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
         <button id="histTab_recommend" type="button" class="hist-tab" onclick="setHistoryFilter('recommend')">지원 추천 ✓ <span id="histCount_recommend" class="hist-tab-badge">0</span></button>
       </div>
-      <div id="historyList" class="space-y-1"></div>
+      <div id="historyTableWrap" class="overflow-x-auto hidden">
+        <table class="board w-full" style="min-width:660px">
+          <thead>
+            <tr>
+              <th>회사명</th><th>직무</th><th>FIT</th><th>판정</th><th>상태</th><th>날짜</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
       <div id="historyEmpty" class="text-sm text-mute text-center py-8 hidden">아직 분석 기록이 없어요</div>
     </div>
 
@@ -544,47 +570,98 @@ function extractJson(data){
   throw new Error('PARSE_FAIL');
 }
 
-const PERSONA = `[지원자 — 최지예]
-- 포지셔닝: 글로벌 오퍼레이터 지망
-- 경력: 해외영업 6년 + IT 마케터 1년
-- 핵심 강점: 커뮤니케이션, 협상력, 스토리텔링
-- 에너지 원천: 사명감, 소속감, 함께 새로운 시도
-- 취약점: 빠른 판단, 꼼꼼한 관리, 경쟁 성과 중심 환경
-- 지향점: 브랜드 전체를 직접 설계하고 운영하는 역할로 성장
-- 이직 관점: 브랜드 전체를 직접 다루는 경험을 쌓는 스텝으로 이직을 본다`;
+/* ============================================================
+   ⚙️  CONFIG — 이 블록만 자기 것으로 바꾸면 됩니다
+   ────────────────────────────────────────────────────────────
+   다른 사람이 이 도구를 자기 커리어에 맞게 쓰려면
+   아래 CONFIG 값들만 수정하세요. 화면·AI 프롬프트·판정이
+   전부 이 값에서 자동으로 생성됩니다. (코드 다른 곳은 손댈 필요 없음)
+============================================================ */
+const CONFIG = {
+  // ── 나를 설명하는 정보 ──
+  candidate: {
+    name: '최지예',                 // 이름 (호칭에 사용)
+    profile: [                      // 나를 설명하는 줄들 (자유롭게 추가/삭제)
+      '포지셔닝: 글로벌 오퍼레이터 지망',
+      '경력: 해외영업 6년 + IT 마케터 1년',
+      '핵심 강점: 커뮤니케이션, 협상력, 스토리텔링',
+      '에너지 원천: 사명감, 소속감, 함께 새로운 시도',
+      '취약점: 빠른 판단, 꼼꼼한 관리, 경쟁 성과 중심 환경',
+      '지향점: 브랜드 전체를 직접 설계하고 운영하는 역할로 성장',
+      '이직 관점: 브랜드 전체를 직접 다루는 경험을 쌓는 스텝으로 이직을 본다',
+    ],
+    // 모든 분석을 관통하는 핵심 관점 (한 문장) — "이 회사가 [goal]?"
+    goal: '브랜드 전체를 직접 설계하고 운영하는 역량을 키우는 데 도움이 되는가',
+  },
 
-// 4 fixed JD evaluation criteria (the judgment framework)
-const CRITERIA = [
-  { key: 'global',     short: '글로벌 경력 활용', label: '해외영업/글로벌 경력을 살릴 수 있는가' },
-  { key: 'brand_flow', short: '브랜드 흐름',       label: '브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무가 아닌)' },
-  { key: 'small_org',  short: '중소기업 규모',     label: '중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능)' },
-  { key: 'startup',    short: '전체 흐름 경험',     label: '브랜드 전체 흐름을 직접 경험할 수 있는 환경인가' },
-];
+  // ── JD 평가 기준 (개수·내용 자유. key는 영문 고유값, 서로 겹치지 않게) ──
+  criteria: [
+    { key: 'global',     short: '글로벌 경력 활용', label: '해외영업/글로벌 경력을 살릴 수 있는가' },
+    { key: 'brand_flow', short: '브랜드 흐름',       label: '브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무가 아닌)' },
+    { key: 'small_org',  short: '중소기업 규모',     label: '중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능)' },
+    { key: 'startup',    short: '전체 흐름 경험',     label: '브랜드 전체 흐름을 직접 경험할 수 있는 환경인가' },
+  ],
+  // 판정: 전부 충족=지원 추천 / 1개 빼고 충족=검토 필요 / 그 외=패스 (자동)
 
-const APPEAL_PRIORITY = `[어필 포인트 우선순위]
-1순위: 커뮤니케이션 / 협상력 / 스토리텔링 관련 경험
-2순위: 해외영업 + 브랜드 운영 교차 경험
-3순위: AI 툴 활용 + 자동화 구축 경험`;
+  // ── 어필 포인트 우선순위 (위에서부터 1순위) ──
+  appealPriority: [
+    '커뮤니케이션 / 협상력 / 스토리텔링 관련 경험',
+    '해외영업 + 브랜드 운영 교차 경험',
+    'AI 툴 활용 + 자동화 구축 경험',
+  ],
 
-const SYSTEM_PROMPT = `커리어핏은 최지예님의 이직 판단을 돕는 커리어 전문가입니다.
+  // ── 결과 화면에 항상 뜨는 핵심 질문 + AI가 답할 내용 ──
+  connectionQuestion: '이 공고, 브랜드 전체 흐름을 직접 경험할 수 있나요?',
+  connectionField: '이 공고에서 브랜드 전체 흐름을 직접 경험할 수 있는지 한 줄',
+
+  // ── 이력서 가이드 방향 한 줄 ──
+  resumeGuideHint: '무역실무보다 브랜드 운영/마케팅 경험을 앞으로.',
+
+  // ── 1차 필터: 특정 업계 경력 '필수' 공고 감지 (안 쓰면 enabled:false) ──
+  requirementFilter: {
+    enabled: true,
+    what: '화장품/뷰티',                                          // 무슨 경력인지
+    requiredMsg: '⚠️ 화장품 경력 필수 공고 — 이력서에 K-Beauty Files + 브랜드 분석 경력으로 커버 전략 필요',
+    okMsg: '✓ 화장품 경력 불필수',
+  },
+
+  // ── 이력서 초안에서 금지할 표현 (없으면 forbiddenWord:'' ) ──
+  draft: {
+    forbiddenWord: '창업',
+    positiveDirection: '브랜드 전체를 직접 설계하고 운영하고 싶다',
+  },
+};
+
+/* ============================================================
+   ↑↑↑ 여기까지가 CONFIG. 아래는 CONFIG에서 자동 생성되는 부분
+============================================================ */
+const PERSONA = `[지원자 — ${CONFIG.candidate.name}]\n` +
+  CONFIG.candidate.profile.map(line => `- ${line}`).join('\n');
+
+// display framework derived from CONFIG.criteria
+const CRITERIA = CONFIG.criteria;
+
+const APPEAL_PRIORITY = '[어필 포인트 우선순위]\n' +
+  CONFIG.appealPriority.map((p, i) => `${i + 1}순위: ${p}`).join('\n');
+
+const SYSTEM_PROMPT = `커리어핏은 ${CONFIG.candidate.name}님의 이직 판단을 돕는 커리어 전문가입니다.
 
 ${PERSONA}
 
 핵심 원칙: 지원자도 회사를 고릅니다. 서로 맞아야 오래갑니다. 판단은 돕되, 결정은 본인이 합니다.
-모든 분석은 "이 회사가 최지예님이 브랜드 전체를 직접 설계하고 운영하는 역량을 키우는 데 도움이 되는가" 관점으로 합니다.
+모든 분석은 "이 회사가 ${CONFIG.candidate.name}님이 ${CONFIG.candidate.goal}" 관점으로 합니다.
 
 반드시 JSON만 응답하세요. 설명, 마크다운, 코드블록 없이 순수 JSON만.`;
 
-const DRAFT_SYSTEM = `커리어핏은 최지예님의 이직을 돕는 커리어 전문가입니다.
+const DRAFT_SYSTEM = `커리어핏은 ${CONFIG.candidate.name}님의 이직을 돕는 커리어 전문가입니다.
 
-[지원자 — 최지예]
-- 포지셔닝: 글로벌 오퍼레이터 지망
-- 경력: 해외영업 6년 + IT 마케터 1년
-- 핵심 강점: 커뮤니케이션, 협상력, 스토리텔링
-- 지향: 브랜드 전체를 직접 설계하고 운영하는 역할로 성장하고 싶음
+${PERSONA}
 
-지정된 섹션 마커 형식에 정확히 맞춰서만 응답하세요. 마커 외 다른 설명이나 머리말은 쓰지 마세요.
-모든 문구에서 '창업'이라는 단어나 창업 의도를 절대 언급하지 마세요. 대신 "브랜드 전체를 직접 설계하고 운영하고 싶다"는 방향으로만 표현하세요.`;
+지정된 섹션 마커 형식에 정확히 맞춰서만 응답하세요. 마커 외 다른 설명이나 머리말은 쓰지 마세요.${
+  CONFIG.draft.forbiddenWord
+    ? `\n모든 문구에서 '${CONFIG.draft.forbiddenWord}'(이)라는 단어나 의도를 절대 언급하지 마세요. 대신 "${CONFIG.draft.positiveDirection}"는 방향으로만 표현하세요.`
+    : ''
+}`;
 
 /* ============================================================
    PASSWORD FLOW
@@ -1060,9 +1137,10 @@ function showJdInput(){
 }
 
 function computeVerdict(criteria){
+  const total = CONFIG.criteria.length;
   const met = (criteria || []).filter(c => c.met).length;
-  if (met >= 4) return '지원 추천';
-  if (met === 3) return '검토 필요';
+  if (met >= total) return '지원 추천';      // 전부 충족
+  if (met >= total - 1) return '검토 필요';   // 1개 빼고 충족
   return '패스';
 }
 
@@ -1125,16 +1203,17 @@ function showJdResult(result, fromHistory=false){
     missing.classList.add('hidden');
   }
 
-  // ---- cosmetics 1st-pass filter flag ----
+  // ---- 1st-pass requirement filter flag (CONFIG.requirementFilter) ----
   const cosFlag = document.getElementById('cosmeticsFlag');
+  const rf = CONFIG.requirementFilter;
   const cosLevel = result.cosmetics && result.cosmetics.level;
-  if (cosLevel === 'required') {
+  if (rf.enabled && cosLevel === 'required') {
     cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-warn';
-    cosFlag.textContent = '⚠️ 화장품 경력 필수 공고 — 이력서에 K-Beauty Files + 브랜드 분석 경력으로 커버 전략 필요';
+    cosFlag.textContent = rf.requiredMsg;
     cosFlag.classList.remove('hidden');
-  } else if (cosLevel === 'preferred' || cosLevel === 'none') {
+  } else if (rf.enabled && (cosLevel === 'preferred' || cosLevel === 'none')) {
     cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-ok';
-    cosFlag.textContent = '✓ 화장품 경력 불필수';
+    cosFlag.textContent = rf.okMsg;
     cosFlag.classList.remove('hidden');
   } else {
     cosFlag.classList.add('hidden');
@@ -1282,8 +1361,7 @@ async function generateResumeDraft(result){
 `[이 채용공고 분석 결과]
 회사: ${result.company || ''}
 포지션: ${result.position || ''}
-4대 기준: ${(result.criteria || []).map(c => `${c.label} → ${c.met ? '충족' : '미충족'} (${c.note || ''})`).join(' / ')}
-화장품 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}
+평가 기준: ${(result.criteria || []).map(c => `${c.label} → ${c.met ? '충족' : '미충족'} (${c.note || ''})`).join(' / ')}${CONFIG.requirementFilter.enabled ? `\n${CONFIG.requirementFilter.what} 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}` : ''}
 어필 포인트: ${(result.appeals || []).join(' | ')}
 이력서 가이드: ${result.resume_guide || ''}${jdText ? `\n원문 JD:\n${jdText}` : ''}`;
 
@@ -1296,10 +1374,9 @@ ${resumeBlob || '(이력서 원문 없음 — 위 분석 정보를 근거로 작
 위 채용공고와 내 이력서를 바탕으로, 이 공고에 바로 제출할 이력서 초안을 작성해줘.
 규칙:
 - JD의 언어와 키워드를 최대한 반영해서 "이 사람이 이 공고를 보고 맞춤으로 썼다"는 느낌이 나게.
-- 무역실무보다 브랜드 운영/마케팅 경험을 앞으로 배치.
+- ${CONFIG.resumeGuideHint}
 - 실제 이력서 내용에 근거해서 과장 없이.
-- 핵심 경력 3줄은 기존 이력서 문장을 이 JD에 맞게 다시 쓴 완성 문장으로.
-- 지원 동기를 포함한 모든 문구에서 '창업' 언급 금지. 대신 "브랜드 전체를 직접 설계하고 운영하고 싶다"는 방향으로만 작성.
+- 핵심 경력 3줄은 기존 이력서 문장을 이 JD에 맞게 다시 쓴 완성 문장으로.${CONFIG.draft.forbiddenWord ? `\n- 지원 동기를 포함한 모든 문구에서 '${CONFIG.draft.forbiddenWord}' 언급 금지. 대신 "${CONFIG.draft.positiveDirection}"는 방향으로만 작성.` : ''}
 
 아래 형식에 정확히 맞춰 작성해줘 (마커 라인 그대로 포함, 마커 외 다른 말 금지):
 ###INTRO###
@@ -1524,30 +1601,31 @@ document.getElementById('jdAnalyze').addEventListener('click', async () => {
 Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
 
-  const jsonSchema =
-`이 채용공고를 아래 4대 기준으로 평가해줘. 각 기준은 충족(true)/미충족(false)과 근거 한 줄.
+  const N = CONFIG.criteria.length;
+  const critList = CONFIG.criteria.map((c, i) => `${i + 1}. ${c.key}: ${c.label}`).join('\n');
+  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","met":true,"note":"근거 한 줄"}`).join(',');
+  const rf = CONFIG.requirementFilter;
+  const rfBlock = rf.enabled
+    ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
+    : '';
+  const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
 
-[4대 기준]
-1. global: 해외영업/글로벌 경력을 살릴 수 있는가
-2. brand_flow: 브랜드 전체 흐름을 볼 수 있는 포지션인가 (단순 무역실무만이 아닌 것)
-3. small_org: 중소기업 규모인가 (작은 팀, 대표/팀장과 직접 소통 가능한 구조)
-4. startup: 브랜드 전체 흐름을 직접 경험할 수 있는 환경인가
+  const jsonSchema =
+`이 채용공고를 아래 ${N}대 기준으로 평가해줘. 각 기준은 충족(true)/미충족(false)과 근거 한 줄.
+
+[${N}대 기준]
+${critList}
 
 ${APPEAL_PRIORITY}
-
-[화장품 경력 1차 필터] cosmetics.level 판정:
-- "required": 화장품/뷰티 경력이 '필수 요건'으로 명시 (예: "화장품 경력 필수", "뷰티 업계 경력 O년 이상 필수", "화장품사 재직 경험 필수")
-- "preferred": 화장품 경력이 '우대사항'으로만 언급되거나, "유관 업계 경력" / "글로벌 영업·마케팅 경력"을 인정하는 경우
-- "none": 화장품/뷰티 경력 언급 자체가 없음
-
-회사명 규칙: 명시된 회사명이 있으면 그대로. 없으면 식별 가능한 한 줄 설명 (예: "K-뷰티 D2C 스타트업"). "미상" 단독은 정말 정보가 없을 때만. "(미상)" 같은 부가표기 금지.
+${rfBlock}
+회사명 규칙: 명시된 회사명이 있으면 그대로. 없으면 식별 가능한 한 줄 설명. "미상" 단독은 정말 정보가 없을 때만. "(미상)" 같은 부가표기 금지.
 
 갭/보완 작성 규칙: "~가 부족합니다"가 아니라 "~는 이렇게 커버 가능합니다" 처럼 반드시 커버 방법 중심의 긍정 톤으로.
 
 JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작은따옴표(')를 쓰고, 줄바꿈 없이 한 줄로 작성해줘. (파싱 오류 방지)
 
 아래 형식의 JSON만 응답해줘:
-{"company":"회사명 또는 특징 한 줄","position":"포지션명","cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},"criteria":[{"key":"global","met":true,"note":"근거 한 줄"},{"key":"brand_flow","met":false,"note":"근거 한 줄"},{"key":"small_org","met":true,"note":"근거 한 줄"},{"key":"startup","met":true,"note":"근거 한 줄"}],"brand_connection":"이 공고에서 브랜드 전체 흐름을 직접 경험할 수 있는지 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에는 [○○ 경험]을 앞에 배치하세요 — 한 줄. 무역실무보다 브랜드 운영/마케팅 경험을 앞으로.","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
+{"company":"회사명 또는 특징 한 줄","position":"포지션명",${rfJson}"criteria":[${critJson}],"brand_connection":"${CONFIG.connectionField}","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에 맞춰 어떤 경험을 앞에 배치할지 한 줄. ${CONFIG.resumeGuideHint}","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
 
   let messages;
   if (state.jdMode === 'image') {
@@ -1591,6 +1669,8 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
       appeals: result.appeals || [],
       resume_guide: result.resume_guide || '',
       gaps: result.gaps || [],
+      status: '분석 완료',
+      memo: '',
       analyzed_at: new Date().toISOString(),
     };
     saveHistoryItem(item);
@@ -1609,24 +1689,38 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
 /* ============================================================
    HISTORY
 ============================================================ */
+// 채용 진행 상태 흐름
+const STATUS_FLOW = ['분석 완료', '지원 예정', '지원 완료', '서류 합격', '면접 예정', '최종 합격', '불합격'];
+function statusClass(s){
+  if (s === '최종 합격') return 'st-final';
+  if (s === '불합격') return 'st-reject';
+  if (!s || s === '분석 완료') return '';
+  return 'st-active'; // 지원 예정/완료, 서류 합격, 면접 예정
+}
+// FIT 점수 = 충족 기준 비율(0~100). 옛 기록은 판정으로 추정.
+function fitScore(item){
+  const crit = item.criteria || [];
+  if (crit.length) return Math.round(crit.filter(c => c.met).length / crit.length * 100);
+  const v = resolveVerdict(item);
+  return v === '지원 추천' ? 100 : v === '검토 필요' ? 70 : 30;
+}
+
 function setHistoryFilter(f){
   state.historyFilter = f;
   renderHistory();
 }
 
 function renderHistory(){
-  const list = document.getElementById('historyList');
+  const body = document.getElementById('historyBody');
   const empty = document.getElementById('historyEmpty');
-  list.innerHTML = '';
+  const wrap = document.getElementById('historyTableWrap');
+  body.innerHTML = '';
 
   const all = state.history;
   const recommend = all.filter(h => resolveVerdict(h) === '지원 추천');
-
-  // tab badges
   document.getElementById('histCount_all').textContent = all.length;
   document.getElementById('histCount_recommend').textContent = recommend.length;
 
-  // active tab styling
   const filter = state.historyFilter || 'all';
   document.getElementById('histTab_all').className = 'hist-tab' + (filter === 'all' ? ' active' : '');
   document.getElementById('histTab_recommend').className = 'hist-tab' + (filter === 'recommend' ? ' active' : '');
@@ -1634,33 +1728,71 @@ function renderHistory(){
   const items = filter === 'recommend' ? recommend : all;
 
   if (!items.length) {
+    wrap.classList.add('hidden');
     empty.classList.remove('hidden');
     empty.textContent = all.length === 0
-      ? '아직 분석 기록이 없어요'
-      : (filter === 'recommend' ? '지원 추천 기록이 아직 없어요' : '기록이 없어요');
+      ? '아직 분석한 공고가 없어요'
+      : (filter === 'recommend' ? '지원 추천 공고가 아직 없어요' : '기록이 없어요');
     return;
   }
   empty.classList.add('hidden');
+  wrap.classList.remove('hidden');
 
   items.forEach((h) => {
     const verdict = resolveVerdict(h);
     const meta = verdictMeta(verdict);
     const date = new Date(h.analyzed_at);
     const dd = String(date.getMonth()+1).padStart(2,'0') + '.' + String(date.getDate()).padStart(2,'0');
+    const score = fitScore(h);
+    const status = h.status || '분석 완료';
+    const fadedCls = verdict === '패스' ? ' faded' : '';
 
-    const row = document.createElement('button');
-    row.className = 'hist-row w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg text-left';
-    row.innerHTML = `
-      <div class="flex items-center gap-3 min-w-0">
-        <span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span>
-        <span class="text-sm font-semibold truncate">${escapeHtml(h.company || '미상')}${h.position ? ' · ' + escapeHtml(h.position) : ''}</span>
-      </div>
-      <div class="flex items-center gap-2 text-mute text-xs whitespace-nowrap">
-        <span>${dd}</span><span>›</span>
-      </div>
+    // main row
+    const tr = document.createElement('tr');
+    tr.className = 'board-row' + fadedCls;
+    tr.innerHTML = `
+      <td class="font-semibold text-ink"><div class="max-w-[150px] truncate">${escapeHtml(h.company || '미상')}</div></td>
+      <td class="text-sub"><div class="max-w-[120px] truncate">${escapeHtml(h.position || '-')}</div></td>
+      <td><span class="fit-badge ${meta.pill}">${score}</span></td>
+      <td><span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span></td>
+      <td data-status></td>
+      <td class="text-mute text-xs whitespace-nowrap">${dd}</td>
     `;
-    row.onclick = () => showJdResult(h, true);
-    list.appendChild(row);
+    const sel = document.createElement('select');
+    sel.className = 'status-select ' + statusClass(status);
+    STATUS_FLOW.forEach(opt => {
+      const o = document.createElement('option');
+      o.value = opt; o.textContent = opt;
+      if (opt === status) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.onclick = (e) => e.stopPropagation();
+    sel.onchange = (e) => {
+      e.stopPropagation();
+      h.status = sel.value;
+      sel.className = 'status-select ' + statusClass(sel.value);
+      saveHistory();
+    };
+    tr.querySelector('td[data-status]').appendChild(sel);
+    tr.onclick = () => showJdResult(h, true);
+
+    // memo sub-row
+    const trMemo = document.createElement('tr');
+    trMemo.className = 'board-memo' + fadedCls;
+    const memoTd = document.createElement('td');
+    memoTd.colSpan = 6;
+    const memo = document.createElement('input');
+    memo.type = 'text';
+    memo.className = 'memo-input';
+    memo.placeholder = '메모 한 줄 (예: 추천인 ○○, 마감 5/30, 연봉 협의 여지)';
+    memo.value = h.memo || '';
+    memo.onclick = (e) => e.stopPropagation();
+    memo.onchange = () => { h.memo = memo.value; saveHistory(); };
+    memoTd.appendChild(memo);
+    trMemo.appendChild(memoTd);
+
+    body.appendChild(tr);
+    body.appendChild(trMemo);
   });
 }
 
@@ -1668,6 +1800,10 @@ function renderHistory(){
    INIT
 ============================================================ */
 function init(){
+  // apply CONFIG-driven UI text
+  document.getElementById('brandConnectionQuestion').textContent = CONFIG.connectionQuestion;
+  document.getElementById('criteriaHeading').textContent = CONFIG.criteria.length + '대 기준 체크';
+
   loadAll();
   renderReasonChips();
   if (!state.apiKey) showKeyOverlay();
