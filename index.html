@@ -79,8 +79,10 @@
   .copy-flash { background:#F4F1EA !important; color:#0F1117 !important; }
   /* criteria checklist */
   .crit-yes { color:#4CC487; }
+  .crit-partial { color:#E3B948; }
   .crit-no  { color:#D9685C; }
   .crit-row-no { background:#241818; border-color:#4A2E2E; }
+  .crit-row-part { background:#272314; border-color:#5A4E22; }
   /* cards with accent */
   .card-brand { background:#1C1C24; border:1px solid #3F4552; border-left:4px solid #2D9B6A; }
   .card-guide { background:#15211A; border:1px solid #2E4A3A; }
@@ -119,11 +121,9 @@
   .board-memo td { padding-top:.1rem; padding-bottom:.6rem; }
   .board .faded { opacity:.4; }
   .fit-badge { display:inline-block; min-width:40px; text-align:center; font-weight:800; font-size:.78rem; padding:.15rem .35rem; border-radius:6px; }
-  /* 상태 드롭다운 = 진행 축(파랑/회색/빨강). 판정 색(초록·노랑·회색)과 혼용 금지 */
-  .status-select { background:#1C1C24; border:1px solid #3F4552; color:#A49C8C; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
-  .status-select.st-active { border-color:#4F86B8; color:#84B6E0; }              /* 진행 중 */
-  .status-select.st-final  { border-color:#4F86B8; color:#A8D0F0; background:#16222E; } /* 최종 합격 */
-  .status-select.st-reject { border-color:#7A5252; color:#C9908C; }              /* 불합격 */
+  .fit-neutral { background:#1C1C24; border:1px solid #3F4552; color:#F4F1EA; }   /* FIT 숫자는 중립색 (판정 색은 판정 컬럼에서만) */
+  /* 상태 드롭다운 = 모든 상태 동일 회색. 판정 색과 혼용 금지 */
+  .status-select { background:#1C1C24; border:1px solid #3F4552; color:#C9C2B5; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
   .memo-input { width:100%; background:transparent; border:none; border-bottom:1px dashed #3F4552; font-size:.75rem; color:#F4F1EA; padding:.15rem 0; }
   .memo-input::placeholder { color:#6E665A; }
   .memo-input:focus { outline:none; border-bottom-color:#6B655C; }
@@ -424,7 +424,7 @@
         <table class="board w-full" style="min-width:660px">
           <thead>
             <tr>
-              <th>회사명</th><th>직무</th><th>FIT</th><th>상태</th><th>날짜</th>
+              <th>회사명</th><th>직무</th><th>FIT</th><th>판정</th><th>상태</th><th>날짜</th>
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
@@ -489,8 +489,8 @@ let state = {
 ============================================================ */
 function loadAll(){
   state.apiKey  = localStorage.getItem(STORE.KEY);
-  try { state.profile = JSON.parse(localStorage.getItem(STORE.PROFILE) || 'null'); } catch { state.profile = null; }
-  try { state.history = JSON.parse(localStorage.getItem(STORE.HISTORY) || '[]'); } catch { state.history = []; }
+  try { state.profile = deepDecode(JSON.parse(localStorage.getItem(STORE.PROFILE) || 'null')); } catch { state.profile = null; }
+  try { state.history = deepDecode(JSON.parse(localStorage.getItem(STORE.HISTORY) || '[]')); } catch { state.history = []; }
 }
 function saveProfile(p){
   state.profile = p;
@@ -853,6 +853,23 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
+// HTML 엔티티 → 실제 문자 (AI가 &#39; 같은 엔티티를 내보내는 경우 대응)
+function decodeEntities(s){
+  return String(s)
+    .replace(/&#0*39;|&#x0*27;/gi, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+function deepDecode(v){
+  if (typeof v === 'string') return decodeEntities(v);
+  if (Array.isArray(v)) return v.map(deepDecode);
+  if (v && typeof v === 'object') { const o = {}; for (const k in v) o[k] = deepDecode(v[k]); return o; }
+  return v;
+}
+
 // 숫자·성과 키워드를 <strong>으로 강조 (입력은 이미 escapeHtml 처리된 문자열)
 const METRIC_RE = /(\d[\d,.]*\s*(?:억\s*원|억|만\s*원|만|천|원|달러|%|퍼센트|개국|개월|개사|개|명|건|년|배|차|회|위|곳|군데|종|시간|일))|(\d{1,3}(?:,\d{3})+)|(\d{2,})/g;
 function boldMetrics(escaped){
@@ -904,7 +921,7 @@ document.getElementById('onbAnalyze').addEventListener('click', async () => {
       [{ role: 'user', content: userText }],
       SYSTEM_PROMPT
     );
-    const profile = extractJson(data);
+    const profile = deepDecode(extractJson(data));
     const full = {
       reason,
       resume_raw: resume,
@@ -1149,11 +1166,28 @@ function showJdInput(){
   document.getElementById('jdHeader').classList.remove('hidden');
 }
 
+// 기준별 점수: 적합 25 / 부분 적합 13 / 미적합 0 (레거시 met 보정)
+function critPoints(c){
+  if (c.level === '적합') return 25;
+  if (c.level === '부분 적합') return 13;
+  if (c.level === '미적합') return 0;
+  return c.met ? 25 : 0;
+}
+function critFull(c){ return c.level === '적합' || (c.level === undefined && c.met === true); }
+function critLevel(c){ return c.level || (c.met ? '적합' : '미적합'); }
+function levelMeta(c){
+  const lv = critLevel(c);
+  if (lv === '적합')      return { icon:'✓', iconCls:'crit-yes',     labelCls:'text-ink', row:'' };
+  if (lv === '부분 적합')  return { icon:'◐', iconCls:'crit-partial', labelCls:'text-ink', row:'crit-row-part border px-3 py-2' };
+  return { icon:'✕', iconCls:'crit-no', labelCls:'crit-no', row:'crit-row-no border px-3 py-2' };
+}
+
 function computeVerdict(criteria){
-  const total = CONFIG.criteria.length;
-  const met = (criteria || []).filter(c => c.met).length;
-  if (met >= total) return '지원 추천';      // 전부 충족
-  if (met >= total - 1) return '검토 필요';   // 1개 빼고 충족
+  const arr = criteria || [];
+  if (!arr.length) return '패스';
+  const score = arr.reduce((a, c) => a + critPoints(c), 0) / (arr.length * 25) * 100;
+  if (score >= 75) return '지원 추천';
+  if (score >= 50) return '검토 필요';
   return '패스';
 }
 
@@ -1212,9 +1246,9 @@ function showJdResult(result, fromHistory=false){
   };
 
   const crit = result.criteria || [];
-  const miss = crit.filter(c => !c.met).map(c => c.label);
+  const miss = crit.filter(c => !critFull(c)).map(c => c.label);
   if (verdict === '검토 필요' && miss.length) {
-    missing.innerHTML = '부족한 항목 — ' + miss.map(m => `<b>${escapeHtml(m)}</b>`).join(' · ');
+    missing.innerHTML = '보완 필요 — ' + miss.map(m => `<b>${escapeHtml(m)}</b>`).join(' · ');
     missing.classList.remove('hidden');
   } else {
     missing.classList.add('hidden');
@@ -1223,7 +1257,7 @@ function showJdResult(result, fromHistory=false){
   // 리스크 한 줄 (AI risk 우선, 없으면 미충족/갭에서 도출)
   let risk = (result.risk || '').trim();
   if (!risk) {
-    risk = miss.length ? ('미충족 — ' + miss.join(', '))
+    risk = miss.length ? ('보완 필요 — ' + miss.join(', '))
       : (result.gaps && result.gaps[0] && result.gaps[0].gap) ? result.gaps[0].gap
       : '특별한 리스크는 낮습니다';
   }
@@ -1253,12 +1287,13 @@ function showJdResult(result, fromHistory=false){
   critUl.innerHTML = '';
   if (crit.length) {
     crit.forEach(c => {
+      const lm = levelMeta(c);
       const li = document.createElement('li');
-      li.className = 'flex items-start gap-3 rounded-lg ' + (c.met ? '' : 'crit-row-no border px-3 py-2');
+      li.className = 'flex items-start gap-3 rounded-lg ' + lm.row;
       li.innerHTML = `
-        <span class="text-lg font-black flex-shrink-0 leading-tight ${c.met ? 'crit-yes' : 'crit-no'}">${c.met ? '✓' : '✕'}</span>
+        <span class="text-lg font-black flex-shrink-0 leading-tight ${lm.iconCls}">${lm.icon}</span>
         <div class="flex-1">
-          <div class="text-sm font-semibold ${c.met ? 'text-ink' : 'text-point'}">${escapeHtml(c.label)}</div>
+          <div class="text-sm font-semibold ${lm.labelCls}">${escapeHtml(c.label)} <span class="text-[11px] font-normal text-mute">· ${critLevel(c)}</span></div>
           ${c.note ? `<div class="text-[13px] text-mute leading-relaxed mt-0.5">${escapeHtml(c.note)}</div>` : ''}
         </div>
       `;
@@ -1387,7 +1422,7 @@ async function generateResumeDraft(result){
 `[이 채용공고 분석 결과]
 회사: ${result.company || ''}
 포지션: ${result.position || ''}
-평가 기준: ${(result.criteria || []).map(c => `${c.label} → ${c.met ? '충족' : '미충족'} (${c.note || ''})`).join(' / ')}${CONFIG.requirementFilter.enabled ? `\n${CONFIG.requirementFilter.what} 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}` : ''}
+평가 기준: ${(result.criteria || []).map(c => `${c.label} → ${critLevel(c)} (${c.note || ''})`).join(' / ')}${CONFIG.requirementFilter.enabled ? `\n${CONFIG.requirementFilter.what} 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}` : ''}
 어필 포인트: ${(result.appeals || []).join(' | ')}
 이력서 가이드: ${result.resume_guide || ''}${jdText ? `\n원문 JD:\n${jdText}` : ''}`;
 
@@ -1417,7 +1452,7 @@ ${resumeBlob || '(이력서 원문 없음 — 위 분석 정보를 근거로 작
 
   const data = await callClaude([{ role: 'user', content: prompt }], DRAFT_SYSTEM, 3000);
   const text = (data?.content?.[0]?.text || '').trim();
-  return parseDraftText(text);
+  return deepDecode(parseDraftText(text));
 }
 
 function parseDraftText(text){
@@ -1629,7 +1664,7 @@ Must 조건: ${(p.must||[]).join(', ')}
 
   const N = CONFIG.criteria.length;
   const critList = CONFIG.criteria.map((c, i) => `${i + 1}. ${c.key}: ${c.label}`).join('\n');
-  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","met":true,"note":"근거 한 줄"}`).join(',');
+  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","level":"적합","note":"근거 한 줄"}`).join(',');
   const rf = CONFIG.requirementFilter;
   const rfBlock = rf.enabled
     ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
@@ -1637,10 +1672,16 @@ Must 조건: ${(p.must||[]).join(', ')}
   const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
 
   const jsonSchema =
-`이 채용공고를 아래 ${N}대 기준으로 평가해줘. 각 기준은 충족(true)/미충족(false)과 근거 한 줄.
+`이 채용공고를 아래 ${N}대 기준으로 평가해줘. 각 기준은 적합도 level과 근거 한 줄.
 
 [${N}대 기준]
 ${critList}
+
+[기준별 level 판정 — 후하게 주지 말고 엄격하게]
+- "적합": 공고에서 명확히 충족된다고 확인되는 경우에만
+- "부분 적합": 일부만 해당되거나 추정/모호한 경우
+- "미적합": 해당 없거나 오히려 반대인 경우
+(대부분의 공고는 4개 모두 적합이 나오기 어렵습니다. 근거가 약하면 '부분 적합' 또는 '미적합'으로.)
 
 ${APPEAL_PRIORITY}
 ${rfBlock}
@@ -1677,11 +1718,14 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
 
   try {
     const data = await callClaude(messages, SYSTEM_PROMPT);
-    const result = extractJson(data);
-    // normalize criteria against the fixed 4-criteria framework
+    const result = deepDecode(extractJson(data));
+    // normalize criteria against the fixed framework (3-level: 적합/부분 적합/미적합)
+    const LEVELS = ['적합', '부분 적합', '미적합'];
     const criteria = CRITERIA.map(def => {
       const found = (result.criteria || []).find(c => c.key === def.key);
-      return { key: def.key, label: def.label, met: !!(found && found.met), note: (found && found.note) || '' };
+      let level = found && found.level;
+      if (!LEVELS.includes(level)) level = (found && found.met) ? '적합' : '미적합'; // 레거시 met 보정
+      return { key: def.key, label: def.label, level, note: (found && found.note) || '' };
     });
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -1696,7 +1740,7 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
       appeals: result.appeals || [],
       resume_guide: result.resume_guide || '',
       gaps: result.gaps || [],
-      status: '분석 완료',
+      status: '지원 전',
       memo: '',
       analyzed_at: new Date().toISOString(),
     };
@@ -1717,21 +1761,16 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
    HISTORY
 ============================================================ */
 // 채용 진행 상태 흐름
-const STATUS_FLOW = ['분석 완료', '지원 예정', '지원 완료', '서류 합격', '면접 예정', '최종 합격', '불합격'];
-function statusClass(s){
-  if (s === '최종 합격') return 'st-final';
-  if (s === '불합격') return 'st-reject';
-  if (s === '지원 예정' || s === '지원 완료' || s === '서류 합격' || s === '면접 예정') return 'st-active';
-  return ''; // 분석 완료 + 알 수 없는 레거시 값 → 회색
-}
-// 레거시/미지원 상태값은 '분석 완료'로 정규화
-function normStatus(s){ return STATUS_FLOW.includes(s) ? s : '분석 완료'; }
-// FIT 점수 = 충족 기준 비율(0~100). 옛 기록은 판정으로 추정.
+const STATUS_FLOW = ['지원 전', '서류', '1차 면접', '최종', '패스'];
+// 모든 상태 동일 회색 (판정 색과 혼용 금지) → 색 클래스 없음
+// 레거시/미지원 상태값은 '지원 전'으로 정규화
+function normStatus(s){ return STATUS_FLOW.includes(s) ? s : '지원 전'; }
+// FIT 점수 = 기준별 점수 합(적합25/부분13/미적합0) → 0~100. 옛 기록은 판정으로 추정.
 function fitScore(item){
   const crit = item.criteria || [];
-  if (crit.length) return Math.round(crit.filter(c => c.met).length / crit.length * 100);
+  if (crit.length) return Math.round(crit.reduce((a, c) => a + critPoints(c), 0) / (crit.length * 25) * 100);
   const v = resolveVerdict(item);
-  return v === '지원 추천' ? 100 : v === '검토 필요' ? 70 : 30;
+  return v === '지원 추천' ? 90 : v === '검토 필요' ? 60 : 25;
 }
 
 function setHistoryFilter(f){
@@ -1781,21 +1820,23 @@ function renderHistory(){
     // 패스는 흐리게 (단, 패스 전용 필터에서는 또렷하게)
     const fadedCls = (verdict === '패스' && filter !== 'pass') ? ' faded' : '';
 
-    // main row (판정 컬럼 제거 — FIT 색상이 판정을 대신함)
+    // main row — FIT(중립) · 판정(색 구분) · 상태(회색)
     const tr = document.createElement('tr');
     tr.className = 'board-row' + fadedCls;
     tr.innerHTML = `
       <td><button type="button" class="company-link font-semibold text-ink text-left hover:underline"><span class="block max-w-[150px] truncate">${escapeHtml(h.company || '미상')}</span></button></td>
       <td class="text-sub"><div class="max-w-[120px] truncate">${escapeHtml(h.position || '-')}</div></td>
-      <td><span class="fit-badge ${meta.pill}">${score}</span></td>
+      <td><span class="fit-badge fit-neutral">${score}</span></td>
+      <td><span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span></td>
       <td data-status></td>
       <td class="text-mute text-xs whitespace-nowrap">${dd}</td>
     `;
     // 회사명 클릭 → 분석 상세 (공고 판단 탭)
     tr.querySelector('.company-link').onclick = (e) => { e.stopPropagation(); switchTab(1); showJdResult(h, true); };
 
+    // 상태 드롭다운 — 판정과 무관하게 전부 동일 회색
     const sel = document.createElement('select');
-    sel.className = 'status-select ' + statusClass(status);
+    sel.className = 'status-select';
     STATUS_FLOW.forEach(opt => {
       const o = document.createElement('option');
       o.value = opt; o.textContent = opt;
@@ -1806,7 +1847,6 @@ function renderHistory(){
     sel.onchange = (e) => {
       e.stopPropagation();
       h.status = sel.value;
-      sel.className = 'status-select ' + statusClass(sel.value);
       saveHistory();
     };
     tr.querySelector('td[data-status]').appendChild(sel);
@@ -1815,7 +1855,7 @@ function renderHistory(){
     const trMemo = document.createElement('tr');
     trMemo.className = 'board-memo hidden' + fadedCls;
     const memoTd = document.createElement('td');
-    memoTd.colSpan = 5;
+    memoTd.colSpan = 6;
     const memo = document.createElement('input');
     memo.type = 'text';
     memo.className = 'memo-input';
