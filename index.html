@@ -13,14 +13,14 @@
     theme: {
       extend: {
         colors: {
-          bg:        '#1A1A1A',
-          ink:       '#ECE7DC',
-          sub:       '#B5AC9E',
-          mute:      '#8F8676',
-          point:     '#C9714F',
-          'point-dk':'#E08862',
-          border:    '#383531',
-          card:      '#242220',
+          bg:        '#0F1117',
+          ink:       '#F4F1EA',
+          sub:       '#C9C2B5',
+          mute:      '#A49C8C',
+          point:     '#2D9B6A',
+          'point-dk':'#34B47C',
+          border:    '#3F4552',
+          card:      '#1C1C24',
           warn:      '#E3B948',
         },
         fontFamily: {
@@ -32,84 +32,86 @@
 </script>
 <style>
   :root { color-scheme: dark; }
-  html, body { background: #1A1A1A; color: #ECE7DC; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; }
+  html, body { background: #0F1117; color: #F4F1EA; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; }
   body { font-feature-settings: "ss01","ss03","cv01"; -webkit-font-smoothing: antialiased; }
-  .tab-active { color: #ECE7DC; border-bottom: 3px solid #C9714F; font-weight: 700; }
-  .tab-inactive { color: #8F8676; border-bottom: 3px solid transparent; font-weight: 500; }
-  .input-tab-active { background: #ECE7DC; color: #1A1A1A; }
-  .input-tab-inactive { background: transparent; color: #B5AC9E; }
-  .btn-primary { background:#C9714F; color:#1A1410; }
-  .btn-primary:hover:not(:disabled) { background:#E08862; }
+  .tab-active { color: #F4F1EA; border-bottom: 3px solid #2D9B6A; font-weight: 700; }
+  .tab-inactive { color: #A49C8C; border-bottom: 3px solid transparent; font-weight: 500; }
+  .input-tab-active { background: #F4F1EA; color: #0F1117; }
+  .input-tab-inactive { background: transparent; color: #C9C2B5; }
+  .btn-primary { background:#1F7A52; color:#F4F1EA; }
+  .btn-primary:hover:not(:disabled) { background:#268C60; }
   .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
-  .btn-outline { background:transparent; color:#ECE7DC; border:1px solid #6B655C; }
-  .btn-outline:hover { background:#ECE7DC; color:#1A1A1A; }
-  .btn-ghost { background:transparent; color:#B5AC9E; }
-  .btn-ghost:hover { color:#ECE7DC; }
+  .btn-outline { background:transparent; color:#F4F1EA; border:1px solid #6B655C; }
+  .btn-outline:hover { background:#F4F1EA; color:#0F1117; }
+  .btn-ghost { background:transparent; color:#C9C2B5; }
+  .btn-ghost:hover { color:#F4F1EA; }
   .pill { display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .7rem; border-radius:999px; font-size:.75rem; font-weight:600; }
+  .metric { font-weight:800; color:#FFFFFF; }
   .reason-chip {
     display:inline-flex; align-items:center;
-    background:#242220; color:#ECE7DC;
-    border:1px solid #383531; border-radius:999px;
+    background:#1C1C24; color:#F4F1EA;
+    border:1px solid #3F4552; border-radius:999px;
     padding:.55rem 1rem; font-size:.875rem; font-weight:500;
     cursor:pointer; transition: all .12s ease;
   }
   .reason-chip:hover { border-color:#6B655C; }
-  .reason-chip.selected { background:#ECE7DC; color:#1A1A1A; border-color:#ECE7DC; }
-  .card { background:#242220; border:1px solid #383531; }
-  .divider { height:1px; background:#383531; }
-  .spinner { width:18px; height:18px; border:2px solid #383531; border-top-color:#C9714F; border-radius:50%; animation: spin .8s linear infinite; }
+  .reason-chip.selected { background:#F4F1EA; color:#0F1117; border-color:#F4F1EA; }
+  .card { background:#1C1C24; border:1px solid #3F4552; }
+  .divider { height:1px; background:#3F4552; }
+  .spinner { width:18px; height:18px; border:2px solid #3F4552; border-top-color:#F4F1EA; border-radius:50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .drop-zone { border: 2px dashed #4A453E; transition: all .15s ease; }
-  .drop-zone.drag { border-color:#C9714F; background:#242220; }
+  .drop-zone { background:#1C1C24; border: 2px dashed #6E665A; transition: all .15s ease; }
+  .drop-zone:hover { border-color:#8A8170; }
+  .drop-zone.drag { border-color:#2D9B6A; background:#22222C; }
   details > summary { list-style: none; cursor: pointer; }
   details > summary::-webkit-details-marker { display:none; }
   details[open] .chev { transform: rotate(90deg); }
   .chev { transition: transform .15s ease; }
   textarea, input[type="text"], input[type="password"] {
-    background:#242220; border:1px solid #383531; color:#ECE7DC;
+    background:#1C1C24; border:1px solid #3F4552; color:#F4F1EA;
   }
   textarea::placeholder, input::placeholder { color:#6E665A; }
   textarea:focus, input:focus { outline: none; border-color:#6B655C; }
   /* verdict color BAND — vivid, high-visibility on dark */
   .verdict-green  { background:#2FA866; color:#0B1A10; }   /* 지원 추천 */
-  .verdict-yellow { background:#E3B948; color:#1A1A1A; }   /* 검토 필요 */
-  .verdict-gray   { background:#2A2825; color:#8F8676; border:1px solid #383531; } /* 패스 */
-  .copy-flash { background:#ECE7DC !important; color:#1A1A1A !important; }
+  .verdict-yellow { background:#E3B948; color:#0F1117; }   /* 검토 필요 */
+  .verdict-gray   { background:#2A2825; color:#A49C8C; border:1px solid #3F4552; } /* 패스 */
+  .copy-flash { background:#F4F1EA !important; color:#0F1117 !important; }
   /* criteria checklist */
   .crit-yes { color:#4CC487; }
-  .crit-no  { color:#E08862; }
-  .crit-row-no { background:#2A211C; border-color:#4A3A2C; }
+  .crit-no  { color:#D9685C; }
+  .crit-row-no { background:#241818; border-color:#4A2E2E; }
   /* cards with accent */
-  .card-brand { background:#242220; border:1px solid #383531; border-left:4px solid #C9714F; }
-  .card-guide { background:#2A241C; border:1px solid #4A3E2C; }
+  .card-brand { background:#1C1C24; border:1px solid #3F4552; border-left:4px solid #2D9B6A; }
+  .card-guide { background:#15211A; border:1px solid #2E4A3A; }
   /* 1st-pass requirement filter flag */
   .flag-warn { background:#332B16; border:1px solid #6B5A2A; color:#EBC75A; }
   .flag-ok   { background:#16271C; border:1px solid #2E5A3E; color:#5FCF90; }
   /* Step number badge */
   .step-num {
     width: 28px; height:28px; border-radius:999px;
-    background:#ECE7DC; color:#1A1A1A;
+    background:#F4F1EA; color:#0F1117;
     display:inline-flex; align-items:center; justify-content:center;
     font-weight:700; font-size:.85rem;
   }
   /* Editable rings */
   .editable {
-    background:#242220; border:1px solid #383531; border-radius:8px; padding:.5rem .75rem;
+    background:#1C1C24; border:1px solid #3F4552; border-radius:8px; padding:.5rem .75rem;
   }
   /* History row */
   .hist-row { transition: background .12s ease; }
   .hist-row:hover { background:#2E2B27; }
   .hist-pill-green  { background:#2FA866; color:#0B1A10; }
-  .hist-pill-yellow { background:#E3B948; color:#1A1A1A; }
-  .hist-pill-gray   { background:#36332F; color:#8F8676; }
+  .hist-pill-yellow { background:#E3B948; color:#0F1117; }
+  .hist-pill-gray   { background:#36332F; color:#A49C8C; }
   /* History filter tabs */
-  .hist-tab { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .9rem; border-radius:999px; font-size:.8rem; font-weight:600; border:1px solid #383531; color:#B5AC9E; background:transparent; cursor:pointer; transition: all .12s ease; }
+  .hist-tab { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .9rem; border-radius:999px; font-size:.8rem; font-weight:600; border:1px solid #3F4552; color:#C9C2B5; background:transparent; cursor:pointer; transition: all .12s ease; }
   .hist-tab:hover { border-color:#6B655C; }
-  .hist-tab.active { background:#ECE7DC; color:#1A1A1A; border-color:#ECE7DC; }
+  .hist-tab.active { background:#F4F1EA; color:#0F1117; border-color:#F4F1EA; }
   .hist-tab-badge { font-size:.7rem; opacity:.85; }
   /* Status board table */
   .board { border-collapse: collapse; }
-  .board thead th { text-align:left; font-size:.72rem; font-weight:700; color:#8F8676; padding:.5rem .6rem; border-bottom:1.5px solid #383531; white-space:nowrap; }
+  .board thead th { text-align:left; font-size:.72rem; font-weight:700; color:#A49C8C; padding:.5rem .6rem; border-bottom:1.5px solid #3F4552; white-space:nowrap; }
   .board td { padding:.5rem .6rem; vertical-align:middle; }
   .board-row { cursor:pointer; transition: background .12s ease; }
   .board-row td { border-bottom:1px solid #2E2B27; }
@@ -117,15 +119,15 @@
   .board-memo td { padding-top:.1rem; padding-bottom:.6rem; }
   .board .faded { opacity:.4; }
   .fit-badge { display:inline-block; min-width:40px; text-align:center; font-weight:800; font-size:.78rem; padding:.15rem .35rem; border-radius:6px; }
-  .status-select { background:#242220; border:1px solid #383531; color:#B5AC9E; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
-  .status-select.st-active { border-color:#E08862; color:#E08862; }
+  .status-select { background:#1C1C24; border:1px solid #3F4552; color:#C9C2B5; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
+  .status-select.st-active { border-color:#2D9B6A; color:#34B47C; }
   .status-select.st-final  { border-color:#2FA866; color:#4CC487; background:#16271C; }
-  .status-select.st-reject { border-color:#5A554C; color:#8F8676; }
-  .memo-input { width:100%; background:transparent; border:none; border-bottom:1px dashed #383531; font-size:.75rem; color:#ECE7DC; padding:.15rem 0; }
+  .status-select.st-reject { border-color:#5A554C; color:#A49C8C; }
+  .memo-input { width:100%; background:transparent; border:none; border-bottom:1px dashed #3F4552; font-size:.75rem; color:#F4F1EA; padding:.15rem 0; }
   .memo-input::placeholder { color:#6E665A; }
   .memo-input:focus { outline:none; border-bottom-color:#6B655C; }
   /* Top nav */
-  .nav-shadow { box-shadow: 0 1px 0 #383531; }
+  .nav-shadow { box-shadow: 0 1px 0 #3F4552; }
   @media (max-width: 768px) {
     .hide-mobile { display:none; }
     .nav-wrap { padding-left: 1rem; padding-right: 1rem; }
@@ -176,8 +178,8 @@
 
     <!-- HEADER -->
     <header class="mb-8">
-      <div class="text-xs tracking-widest text-mute mb-2">STEP · ONBOARDING</div>
-      <h1 class="text-3xl font-bold leading-tight">먼저 당신을 알려주세요</h1>
+      <div class="text-xs tracking-widest text-mute mb-2">MY PROFILE</div>
+      <h1 class="text-3xl font-bold leading-tight">무조건 지원하지 않습니다.<br/>기준부터 설정합니다.</h1>
       <p class="text-sub mt-2 text-sm leading-relaxed">한 번만 입력하면 됩니다. 다음부터는 채용공고만 넣으면 돼요.</p>
     </header>
 
@@ -287,18 +289,6 @@
   <!-- ============== TAB 1 · 공고 판단 (JD ANALYZER) ============== -->
   <section id="tab1" class="">
 
-    <!-- PROFILE STRIP -->
-    <div id="profileStrip" class="card rounded-xl p-4 mb-6 hidden">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-[11px] tracking-widest text-mute mb-1">MY PROFILE</div>
-          <div id="stripSummary" class="font-bold text-base truncate"></div>
-          <div id="stripMust" class="text-xs text-sub mt-1"></div>
-        </div>
-        <button class="text-xs text-mute hover:text-ink whitespace-nowrap" onclick="editProfile()">프로필 수정</button>
-      </div>
-    </div>
-
     <div id="needProfileMsg" class="card rounded-xl p-6 mb-6 text-center hidden">
       <div class="font-semibold mb-2">먼저 프로필을 만들어주세요</div>
       <div class="text-sm text-sub mb-4">이력서 한 번만 입력하면 JD 분석이 가능해요.</div>
@@ -343,11 +333,23 @@
     <div id="jdResult" class="hidden">
       <button id="jdBack" class="text-sm text-mute hover:text-ink mb-4">← 새 JD 분석하기</button>
 
-      <!-- VERDICT BAND — badge + company -->
-      <div id="verdictBand" class="rounded-2xl px-7 py-6 mb-4">
-        <div id="verdictLabel" class="text-3xl md:text-4xl font-black leading-none mb-3"></div>
-        <div id="verdictCompany" class="text-sm font-semibold opacity-90"></div>
+      <!-- FIT SUMMARY (hero) -->
+      <div id="fitSummary" class="card rounded-2xl p-6 mb-4">
+        <div class="text-xs tracking-widest text-mute mb-4">FIT SUMMARY</div>
+        <div class="flex items-center gap-5">
+          <div class="text-center flex-shrink-0">
+            <div id="fitScoreBig" class="text-5xl font-black leading-none"></div>
+            <div class="text-[10px] tracking-widest text-mute mt-1">FIT</div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <span id="verdictLabel" class="pill text-sm"></span>
+            <div id="verdictCompany" class="text-sm font-semibold text-sub mt-2"></div>
+          </div>
+        </div>
         <div id="verdictMissing" class="text-sm mt-3 hidden leading-relaxed"></div>
+        <div class="text-sm mt-4 pt-3" style="border-top:1px solid #3F4552">
+          <span class="text-mute">리스크 · </span><span id="fitRisk" class="text-sub"></span>
+        </div>
       </div>
 
       <!-- COSMETICS 1ST-PASS FILTER FLAG -->
@@ -850,6 +852,12 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
+// 숫자·성과 키워드를 <strong>으로 강조 (입력은 이미 escapeHtml 처리된 문자열)
+const METRIC_RE = /(\d[\d,.]*\s*(?:억\s*원|억|만\s*원|만|천|원|달러|%|퍼센트|개국|개월|개사|개|명|건|년|배|차|회|위|곳|군데|종|시간|일))|(\d{1,3}(?:,\d{3})+)|(\d{2,})/g;
+function boldMetrics(escaped){
+  return escaped.replace(METRIC_RE, m => `<strong class="metric">${m}</strong>`);
+}
+
 /* ============================================================
    ONBOARDING — ANALYZE
 ============================================================ */
@@ -1120,20 +1128,14 @@ document.getElementById('resumeLinkInput').addEventListener('keydown', (e) => {
 function renderJdTab(){
   if (!state.profile) {
     document.getElementById('needProfileMsg').classList.remove('hidden');
-    document.getElementById('profileStrip').classList.add('hidden');
     document.getElementById('jdHeader').classList.add('hidden');
     document.getElementById('jdInputArea').classList.add('hidden');
     document.getElementById('jdResult').classList.add('hidden');
     return;
   }
   document.getElementById('needProfileMsg').classList.add('hidden');
-  document.getElementById('profileStrip').classList.remove('hidden');
   document.getElementById('jdHeader').classList.remove('hidden');
-
-  document.getElementById('stripSummary').textContent = state.profile.summary;
-  document.getElementById('stripMust').textContent = '판단 기준: ' + CRITERIA.map(c => c.short).join(' · ');
-
-  showJdInput();   // 열면 입력창 바로
+  showJdInput();   // 열면 JD 입력창 바로
 }
 
 function renderStatusTab(){
@@ -1177,13 +1179,17 @@ function showJdResult(result, fromHistory=false){
   const verdict = resolveVerdict(result);
   const meta = verdictMeta(verdict);
 
-  // ---- verdict band: badge + company + missing ----
-  const band = document.getElementById('verdictBand');
+  // ---- FIT SUMMARY: score + verdict pill + company + risk ----
   const label = document.getElementById('verdictLabel');
   const company = document.getElementById('verdictCompany');
   const missing = document.getElementById('verdictMissing');
 
-  band.className = 'rounded-2xl px-7 py-6 mb-4 ' + meta.band;
+  const score = fitScore(result);
+  const scoreEl = document.getElementById('fitScoreBig');
+  scoreEl.textContent = score;
+  scoreEl.style.color = verdict === '지원 추천' ? '#2FA866' : verdict === '검토 필요' ? '#E3B948' : '#A49C8C';
+
+  label.className = 'pill ' + meta.pill;
   label.textContent = `${meta.icon} ${verdict}`;
 
   company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
@@ -1212,6 +1218,15 @@ function showJdResult(result, fromHistory=false){
   } else {
     missing.classList.add('hidden');
   }
+
+  // 리스크 한 줄 (AI risk 우선, 없으면 미충족/갭에서 도출)
+  let risk = (result.risk || '').trim();
+  if (!risk) {
+    risk = miss.length ? ('미충족 — ' + miss.join(', '))
+      : (result.gaps && result.gaps[0] && result.gaps[0].gap) ? result.gaps[0].gap
+      : '특별한 리스크는 낮습니다';
+  }
+  document.getElementById('fitRisk').textContent = risk;
 
   // ---- 1st-pass requirement filter flag (CONFIG.requirementFilter) ----
   const cosFlag = document.getElementById('cosmeticsFlag');
@@ -1308,7 +1323,7 @@ function showJdResult(result, fromHistory=false){
     li.className = 'flex items-start gap-3';
     li.innerHTML = `
       <span class="mt-0.5 w-6 h-6 rounded-full bg-ink text-bg flex items-center justify-center text-[11px] font-bold flex-shrink-0">${i+1}</span>
-      <div class="flex-1"><div class="text-sm leading-relaxed text-ink">${escapeHtml(a)}</div></div>
+      <div class="flex-1"><div class="text-sm leading-relaxed text-ink">${boldMetrics(escapeHtml(a))}</div></div>
       <button class="btn-outline rounded-md px-3 py-1 text-xs whitespace-nowrap">복사</button>
     `;
     li.querySelector('button').onclick = (e) => copyAll(e.currentTarget, a);
@@ -1635,7 +1650,7 @@ ${rfBlock}
 JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작은따옴표(')를 쓰고, 줄바꿈 없이 한 줄로 작성해줘. (파싱 오류 방지)
 
 아래 형식의 JSON만 응답해줘:
-{"company":"회사명 또는 특징 한 줄","position":"포지션명",${rfJson}"criteria":[${critJson}],"brand_connection":"${CONFIG.connectionField}","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에 맞춰 어떤 경험을 앞에 배치할지 한 줄. ${CONFIG.resumeGuideHint}","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
+{"company":"회사명 또는 특징 한 줄","position":"포지션명",${rfJson}"criteria":[${critJson}],"brand_connection":"${CONFIG.connectionField}","risk":"이 공고 지원 시 가장 큰 리스크/주의점 한 줄","appeals":["어필1 — 내 경력 증거 포함 완성 문장 (우선순위 반영)","어필2","어필3"],"resume_guide":"이 JD에 맞춰 어떤 경험을 앞에 배치할지 한 줄. ${CONFIG.resumeGuideHint}","gaps":[{"gap":"보완할 점","strategy":"~는 이렇게 커버 가능합니다 (긍정 톤)"}]}`;
 
   let messages;
   if (state.jdMode === 'image') {
@@ -1676,6 +1691,7 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
       criteria,
       verdict: computeVerdict(criteria),
       brand_connection: result.brand_connection || '',
+      risk: result.risk || '',
       appeals: result.appeals || [],
       resume_guide: result.resume_guide || '',
       gaps: result.gaps || [],
