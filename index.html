@@ -119,10 +119,11 @@
   .board-memo td { padding-top:.1rem; padding-bottom:.6rem; }
   .board .faded { opacity:.4; }
   .fit-badge { display:inline-block; min-width:40px; text-align:center; font-weight:800; font-size:.78rem; padding:.15rem .35rem; border-radius:6px; }
-  .status-select { background:#1C1C24; border:1px solid #3F4552; color:#C9C2B5; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
-  .status-select.st-active { border-color:#2D9B6A; color:#34B47C; }
-  .status-select.st-final  { border-color:#2FA866; color:#4CC487; background:#16271C; }
-  .status-select.st-reject { border-color:#5A554C; color:#A49C8C; }
+  /* 상태 드롭다운 = 진행 축(파랑/회색/빨강). 판정 색(초록·노랑·회색)과 혼용 금지 */
+  .status-select { background:#1C1C24; border:1px solid #3F4552; color:#A49C8C; border-radius:6px; padding:.25rem .4rem; font-size:.72rem; font-weight:600; cursor:pointer; }
+  .status-select.st-active { border-color:#4F86B8; color:#84B6E0; }              /* 진행 중 */
+  .status-select.st-final  { border-color:#4F86B8; color:#A8D0F0; background:#16222E; } /* 최종 합격 */
+  .status-select.st-reject { border-color:#7A5252; color:#C9908C; }              /* 불합격 */
   .memo-input { width:100%; background:transparent; border:none; border-bottom:1px dashed #3F4552; font-size:.75rem; color:#F4F1EA; padding:.15rem 0; }
   .memo-input::placeholder { color:#6E665A; }
   .memo-input:focus { outline:none; border-bottom-color:#6B655C; }
