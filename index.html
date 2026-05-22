@@ -130,6 +130,12 @@
   .memo-input:focus { outline:none; border-bottom-color:#6B655C; }
   /* Top nav */
   .nav-shadow { box-shadow: 0 1px 0 #3F4552; }
+  /* delete button + selection */
+  .del-btn { color:#A49C8C; cursor:pointer; display:inline-flex; padding:.2rem; border-radius:6px; transition: all .12s ease; }
+  .del-btn:hover { color:#D9685C; background:#241818; }
+  .row-check, .head-check { width:15px; height:15px; cursor:pointer; accent-color:#2D9B6A; }
+  .bulk-del { background:#D9685C; color:#160B05; }
+  .bulk-del:disabled { background:#2A2825; color:#6E665A; cursor:not-allowed; }
   @media (max-width: 768px) {
     .hide-mobile { display:none; }
     .nav-wrap { padding-left: 1rem; padding-right: 1rem; }
@@ -150,6 +156,17 @@
     <input id="apiKeyInput" type="password" placeholder="비밀번호" class="w-full rounded-lg px-4 py-3 text-sm mb-3" autocomplete="off" />
     <div id="apiKeyError" class="text-xs text-point mb-3 hidden"></div>
     <button id="apiKeySave" class="btn-primary w-full rounded-lg py-3 font-semibold">저장하고 시작</button>
+  </div>
+</div>
+
+<!-- ============== CONFIRM MODAL ============== -->
+<div id="confirmModal" class="fixed inset-0 z-50 flex items-center justify-center px-4 hidden" style="background:rgba(0,0,0,.6)">
+  <div class="card rounded-2xl p-6 w-full max-w-sm">
+    <div id="confirmMsg" class="text-base font-semibold mb-5 leading-relaxed"></div>
+    <div class="flex gap-3 justify-end">
+      <button id="confirmCancel" class="btn-outline rounded-lg px-4 py-2 text-sm font-semibold">취소</button>
+      <button id="confirmOk" class="rounded-lg px-4 py-2 text-sm font-bold" style="background:#D9685C;color:#160B05">삭제</button>
+    </div>
   </div>
 </div>
 
@@ -429,11 +446,16 @@
         <button id="histTab_pass" type="button" class="hist-tab" onclick="setHistoryFilter('pass')">패스 <span id="histCount_pass" class="hist-tab-badge">0</span></button>
         <button id="histTab_all" type="button" class="hist-tab" onclick="setHistoryFilter('all')">전체 <span id="histCount_all" class="hist-tab-badge">0</span></button>
       </div>
+      <div id="bulkBar" class="flex items-center gap-3 mb-3 hidden">
+        <button id="bulkDelete" type="button" class="bulk-del rounded-md px-3 py-1.5 text-xs font-bold" disabled>선택 삭제 <span id="bulkCount">0</span></button>
+        <span class="text-[11px] text-mute">체크박스로 공고를 선택하세요</span>
+      </div>
       <div id="historyTableWrap" class="overflow-x-auto hidden">
-        <table class="board w-full" style="min-width:660px">
+        <table class="board w-full" style="min-width:720px">
           <thead>
             <tr>
-              <th>회사명</th><th>직무</th><th id="fitHeader" style="cursor:pointer; user-select:none" onclick="toggleFitSort()">FIT <span id="fitSortArrow">▼</span></th><th>판정</th><th>상태</th><th>분석일</th>
+              <th style="width:34px"><input type="checkbox" id="selectAll" class="head-check" title="전체 선택"></th>
+              <th>회사명</th><th>직무</th><th id="fitHeader" style="cursor:pointer; user-select:none" onclick="toggleFitSort()">FIT <span id="fitSortArrow">▼</span></th><th>판정</th><th>상태</th><th>분석일</th><th style="width:34px"></th>
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
@@ -483,6 +505,7 @@ let state = {
   history: [],
   historyFilter: 'recommend',
   historySort: 'fit_desc',   // FIT 높은 순 기본
+  selectedHistory: new Set(),
   reasonSelected: null,
   resumeMode: 'text',
   resumeFiles: [],    // [{ name, text }]
@@ -1844,12 +1867,61 @@ function fitScore(item){
 
 function setHistoryFilter(f){
   state.historyFilter = f;
+  state.selectedHistory.clear();   // 필터 바꾸면 선택 초기화
   renderHistory();
 }
 function toggleFitSort(){
   state.historySort = state.historySort === 'fit_asc' ? 'fit_desc' : 'fit_asc';
   renderHistory();
 }
+
+/* ---- confirm modal ---- */
+let _confirmCb = null;
+function showConfirm(msg, cb){
+  document.getElementById('confirmMsg').textContent = msg;
+  _confirmCb = cb;
+  document.getElementById('confirmModal').classList.remove('hidden');
+}
+document.getElementById('confirmCancel').addEventListener('click', () => {
+  document.getElementById('confirmModal').classList.add('hidden'); _confirmCb = null;
+});
+document.getElementById('confirmOk').addEventListener('click', () => {
+  document.getElementById('confirmModal').classList.add('hidden');
+  const cb = _confirmCb; _confirmCb = null; if (cb) cb();
+});
+
+/* ---- delete ---- */
+function deleteHistoryItems(ids){
+  const set = new Set(ids);
+  state.history = state.history.filter(h => !set.has(h.id));
+  ids.forEach(id => state.selectedHistory.delete(id));
+  saveHistory();
+  // 현재 보던 결과가 삭제되면 입력 화면으로
+  if (currentJdResult && set.has(currentJdResult.id)) resetJd();
+  renderHistory();
+}
+function updateBulkBar(){
+  const n = state.selectedHistory.size;
+  const bar = document.getElementById('bulkBar');
+  const btn = document.getElementById('bulkDelete');
+  bar.classList.toggle('hidden', n === 0);
+  btn.disabled = n === 0;
+  document.getElementById('bulkCount').textContent = n;
+}
+document.getElementById('bulkDelete').addEventListener('click', () => {
+  const ids = [...state.selectedHistory];
+  if (!ids.length) return;
+  showConfirm(`선택한 ${ids.length}개 공고를 목록에서 삭제할까요?`, () => deleteHistoryItems(ids));
+});
+document.getElementById('selectAll').addEventListener('change', (e) => {
+  const checked = e.target.checked;
+  document.querySelectorAll('#historyBody .row-check').forEach(cb => {
+    cb.checked = checked;
+    if (checked) state.selectedHistory.add(cb.dataset.id);
+    else state.selectedHistory.delete(cb.dataset.id);
+  });
+  updateBulkBar();
+});
 
 function renderHistory(){
   const body = document.getElementById('historyBody');
@@ -1882,6 +1954,8 @@ function renderHistory(){
       : filter === 'recommend' ? '지원 추천 공고가 아직 없어요'
       : filter === 'review' ? '검토 필요 공고가 없어요'
       : filter === 'pass' ? '패스한 공고가 없어요' : '기록이 없어요';
+    document.getElementById('selectAll').checked = false;
+    updateBulkBar();
     return;
   }
   empty.classList.add('hidden');
@@ -1903,19 +1977,47 @@ function renderHistory(){
     // 패스는 흐리게 (단, 패스 전용 필터에서는 또렷하게)
     const fadedCls = (verdict === '패스' && filter !== 'pass') ? ' faded' : '';
 
-    // main row — FIT(중립) · 판정(색 구분) · 상태(회색)
+    // main row — 선택 · 회사명 · 직무 · FIT(중립) · 판정(색) · 상태(회색) · 분석일 · 삭제
     const tr = document.createElement('tr');
     tr.className = 'board-row' + fadedCls;
     tr.innerHTML = `
+      <td data-check></td>
       <td><button type="button" class="company-link font-semibold text-ink text-left hover:underline" title="${escapeHtml(h.company || '미상')}"><span class="block max-w-[150px] truncate">${escapeHtml(h.company || '미상')}</span></button></td>
       <td class="text-sub"><div class="max-w-[120px] truncate" title="${escapeHtml(h.position || '-')}">${escapeHtml(h.position || '-')}</div></td>
       <td><span class="fit-badge fit-neutral">${score}</span></td>
       <td><span class="pill ${meta.pill} whitespace-nowrap">${meta.icon} ${escapeHtml(verdict)}</span></td>
       <td data-status></td>
       <td class="text-mute text-xs whitespace-nowrap">${dd}</td>
+      <td data-del></td>
     `;
     // 회사명 클릭 → 분석 상세 (공고 판단 탭)
     tr.querySelector('.company-link').onclick = (e) => { e.stopPropagation(); switchTab(1); showJdResult(h, true); };
+
+    // 선택 체크박스
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'row-check';
+    chk.dataset.id = h.id;
+    chk.checked = state.selectedHistory.has(h.id);
+    chk.onclick = (e) => e.stopPropagation();
+    chk.onchange = () => {
+      if (chk.checked) state.selectedHistory.add(h.id); else state.selectedHistory.delete(h.id);
+      syncSelectAll();
+      updateBulkBar();
+    };
+    tr.querySelector('td[data-check]').appendChild(chk);
+
+    // 개별 삭제 (휴지통)
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del-btn';
+    del.title = '삭제';
+    del.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    del.onclick = (e) => {
+      e.stopPropagation();
+      showConfirm('이 공고를 목록에서 삭제할까요?', () => deleteHistoryItems([h.id]));
+    };
+    tr.querySelector('td[data-del]').appendChild(del);
 
     // 상태 드롭다운 — 판정과 무관하게 전부 동일 회색
     const sel = document.createElement('select');
@@ -1938,7 +2040,7 @@ function renderHistory(){
     const trMemo = document.createElement('tr');
     trMemo.className = 'board-memo hidden' + fadedCls;
     const memoTd = document.createElement('td');
-    memoTd.colSpan = 6;
+    memoTd.colSpan = 8;
     const memo = document.createElement('input');
     memo.type = 'text';
     memo.className = 'memo-input';
@@ -1959,6 +2061,16 @@ function renderHistory(){
     body.appendChild(tr);
     body.appendChild(trMemo);
   });
+
+  syncSelectAll();
+  updateBulkBar();
+}
+
+// 보이는 행이 전부 선택됐는지에 따라 '전체 선택' 체크박스 동기화
+function syncSelectAll(){
+  const checks = [...document.querySelectorAll('#historyBody .row-check')];
+  const sa = document.getElementById('selectAll');
+  sa.checked = checks.length > 0 && checks.every(c => c.checked);
 }
 
 /* ============================================================
