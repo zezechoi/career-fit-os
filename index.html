@@ -1379,6 +1379,7 @@ function renderDraft(draft){
       <button id="draftRegen" class="text-xs text-mute hover:text-ink">다시 생성</button>
     </div>
     <div id="draftSections" class="space-y-5"></div>
+    <button id="draftCopyAll" class="btn-primary w-full rounded-lg py-3 font-semibold text-sm mt-5">전체 복사</button>
   `;
   wrap.appendChild(card);
   const sec = card.querySelector('#draftSections');
@@ -1401,6 +1402,14 @@ function renderDraft(draft){
   const hlHtml = '<ol class="list-decimal list-inside space-y-1.5">' + hl.map(h => `<li>${escapeHtml(h)}</li>`).join('') + '</ol>';
   addSection('② 핵심 경력 3줄 (JD 언어로 재배치)', hlHtml, hl.map((h, i) => `${i+1}. ${h}`).join('\n'));
   addSection('③ 지원 동기', escapeHtml(draft.motivation || ''), draft.motivation || '');
+
+  // full draft text for "전체 복사"
+  const fullText = [
+    '[자기소개]', draft.intro || '', '',
+    '[핵심 경력]', hl.map((h, i) => `${i+1}. ${h}`).join('\n'), '',
+    '[지원 동기]', draft.motivation || ''
+  ].join('\n').trim();
+  card.querySelector('#draftCopyAll').onclick = (e) => copyAll(e.currentTarget, fullText);
 
   card.querySelector('#draftRegen').onclick = () => runDraftGeneration();
 }
