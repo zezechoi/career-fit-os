@@ -681,22 +681,23 @@ const CONFIG = {
     goal: '브랜드 전체를 직접 설계하고 운영하는 역량을 키우는 데 도움이 되는가',
   },
 
-  // ── 핵심 평가 기준 (key는 영문 고유값. def=정의, basis=판단 근거, sources=출처 태그 후보) ──
+  // ── 핵심 평가 기준 (key=영문 고유값, weight=가중치, def=정의, basis=판단 근거, sources=출처 태그) ──
+  // 각 기준은 0~100 점수로 채점되고, weight 비율로 가중 평균해 FIT 점수가 됩니다.
   criteria: [
-    { key: 'job', short: '직무', label: '직무 적합',
-      def: '내 경력이 이 역할을 실제로 수행할 수 있는가',
-      basis: '스킬, 경험 연도, 담당 업무 범위',
+    { key: 'job', short: '직무', label: '직무 적합', weight: 40,
+      def: '이 역할이 단순 수행 가능을 넘어 브랜드 운영/마케팅에 얼마나 가까운가 (단순 무역실무=낮게, 브랜드 전체 운영=높게)',
+      basis: '스킬, 경험 연도, 담당 업무 범위, 브랜드 운영 관여도',
       sources: ['JD 기반', '프로필 기반'] },
-    { key: 'env', short: '환경', label: '환경 적합',
+    { key: 'growth', short: '성장', label: '성장 적합', weight: 35,
+      def: '이 포지션이 내가 원하는 경험(브랜드 전 사이클·글로벌 확장)을 얼마나 줄 수 있는가',
+      basis: '브랜드 전 사이클 경험 가능 여부, 글로벌 확장 관여 가능 여부',
+      sources: ['JD 기반', '추정'] },
+    { key: 'env', short: '환경', label: '환경 적합', weight: 25,
       def: '이 회사의 규모·문화가 내 Must 조건과 맞는가',
       basis: '팀 구조, 의사결정 방식, 문화 키워드',
       sources: ['JD 기반', '추정'] },
-    { key: 'growth', short: '성장', label: '성장 적합',
-      def: '이 포지션이 내가 원하는 경험을 줄 수 있는가',
-      basis: '브랜드 전 사이클 경험 가능 여부, 글로벌 확장 관여 가능 여부',
-      sources: ['JD 기반', '추정'] },
   ],
-  // 점수: 적합=만점기여 / 부분 적합=0.6 / 미적합=0. 75+ 지원 추천, 60+ 검토 필요, 그 외 패스.
+  // 점수: 각 기준 0~100 → weight 가중 평균 = FIT. 75+ 지원 추천, 60+ 검토 필요, 그 외 패스. 2개 이상 40점 미만 → 지원 비추천.
   // 미적합 2개 이상 → 자동 '지원 비추천'.
 
   // ── 어필 포인트 우선순위 (위에서부터 1순위) ──
@@ -1252,13 +1253,25 @@ function showJdInput(){
   document.getElementById('jdHeader').classList.remove('hidden');
 }
 
-// 기준별 가중치: 적합 1.0 / 부분 적합 0.6 / 미적합 0
-function critWeight(c){ const lv = critLevel(c); return lv === '적합' ? 1 : lv === '부분 적합' ? 0.6 : 0; }
-function critFull(c){ return critLevel(c) === '적합'; }
-function critLevel(c){ return c.level || (c.met ? '적합' : '미적합'); }
-function countMijeokhap(crit){ return (crit || []).filter(c => critLevel(c) === '미적합').length; }
-function fitScoreFromCrit(crit){ return Math.round(crit.reduce((a, c) => a + critWeight(c), 0) / crit.length * 100); }
-function notRecommended(crit){ return countMijeokhap(crit) >= 2; }   // 미적합 2개 이상 → 지원 비추천
+// 기준별 0~100 점수 (레거시 level/met 보정)
+function critScore(c){
+  if (typeof c.score === 'number') return c.score;
+  if (c.level === '적합') return 90;
+  if (c.level === '부분 적합') return 55;
+  if (c.level === '미적합') return 15;
+  return c.met ? 90 : 15;
+}
+// 점수 → 밴드(적합/부분 적합/미적합) — 아이콘·색상용
+function critLevel(c){ const s = critScore(c); return s >= 70 ? '적합' : s >= 40 ? '부분 적합' : '미적합'; }
+function critFull(c){ return critScore(c) >= 70; }
+// CONFIG 가중치 (옛 키는 균등 1)
+function critImportance(c){ const d = CONFIG.criteria.find(x => x.key === c.key); return d && d.weight ? d.weight : 1; }
+function fitScoreFromCrit(crit){
+  const wsum = crit.reduce((a, c) => a + critImportance(c), 0) || 1;
+  return Math.round(crit.reduce((a, c) => a + critScore(c) * critImportance(c), 0) / wsum);
+}
+function countMijeokhap(crit){ return (crit || []).filter(c => critScore(c) < 40).length; }
+function notRecommended(crit){ return countMijeokhap(crit) >= 2; }   // 40점 미만 2개 이상 → 지원 비추천
 function levelMeta(c){
   const lv = critLevel(c);
   if (lv === '적합')      return { icon:'✓', iconCls:'crit-yes',     labelCls:'text-ink', row:'' };
@@ -1269,7 +1282,7 @@ function levelMeta(c){
 function computeVerdict(criteria){
   const arr = criteria || [];
   if (!arr.length) return '패스';
-  if (notRecommended(arr)) return '패스';        // 미적합 2개 이상 → 패스(지원 비추천)
+  if (notRecommended(arr)) return '패스';        // 40점 미만 2개 이상 → 패스(지원 비추천)
   const score = fitScoreFromCrit(arr);
   if (score >= 75) return '지원 추천';
   if (score >= 60) return '검토 필요';
@@ -1322,9 +1335,9 @@ function showJdResult(result, fromHistory=false){
   // 미적합 2개 이상 → 지원 비추천 태그
   document.getElementById('notRecTag').classList.toggle('hidden', !((result.criteria || []).length && notRecommended(result.criteria)));
 
-  // 근거 한 줄 (예: 직무 적합 · 환경 부분 적합 · 성장 미적합)
+  // 근거 한 줄 (예: 직무 78 · 성장 55 · 환경 40)
   document.getElementById('fitRationale').textContent =
-    (result.criteria || []).map(c => `${c.label.replace(/\s*적합$/, '')} ${critLevel(c)}`).join(' · ');
+    (result.criteria || []).map(c => `${c.label.replace(/\s*적합$/, '')} ${critScore(c)}`).join(' · ');
 
   company.textContent = [result.company, result.position].filter(Boolean).join(' · ');
   company.setAttribute('contenteditable', 'true');
@@ -1392,7 +1405,7 @@ function showJdResult(result, fromHistory=false){
       li.innerHTML = `
         <span class="text-lg font-black flex-shrink-0 leading-tight ${lm.iconCls}">${lm.icon}</span>
         <div class="flex-1">
-          <div class="text-sm font-semibold ${lm.labelCls}">${escapeHtml(c.label)} <span class="text-[11px] font-normal text-mute">· ${critLevel(c)}</span>${c.source ? ` <span class="src-tag">[${escapeHtml(c.source)}]</span>` : ''}</div>
+          <div class="text-sm font-semibold ${lm.labelCls}">${escapeHtml(c.label)} <span class="${lm.iconCls} font-bold">${critScore(c)}</span><span class="text-[11px] font-normal text-mute"> · ${critLevel(c)} · 비중 ${critImportance(c)}%</span>${c.source ? ` <span class="src-tag">[${escapeHtml(c.source)}]</span>` : ''}</div>
           ${c.note ? `<div class="text-[13px] text-mute leading-relaxed mt-0.5">${escapeHtml(c.note)}</div>` : ''}
         </div>
       `;
@@ -1776,24 +1789,25 @@ Must 조건: ${(p.must||[]).join(', ')}
 
 function buildJsonSchema(){
   const critList = CONFIG.criteria.map((c, i) =>
-    `${i + 1}. ${c.key} (${c.label}): ${c.def}\n   - 판단 근거: ${c.basis}\n   - source 값은 다음 중 하나만: ${c.sources.join(' / ')}`
+    `${i + 1}. ${c.key} (${c.label}, 비중 ${c.weight}%): ${c.def}\n   - 판단 근거: ${c.basis}\n   - source 값은 다음 중 하나만: ${c.sources.join(' / ')}`
   ).join('\n');
-  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","level":"적합","source":"${c.sources[0]}","note":"근거 한 줄"}`).join(',');
+  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","score":75,"source":"${c.sources[0]}","note":"근거 한 줄"}`).join(',');
   const rf = CONFIG.requirementFilter;
   const rfBlock = rf.enabled
     ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
     : '';
   const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
-  return `이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 적합도 level, 출처 source, 근거 note.
+  return `이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 0~100 점수 score, 출처 source, 근거 note.
 
 [핵심 기준]
 ${critList}
 
-[level 판정 — 후하게 주지 말고 엄격하게]
-- "적합": 공고에서 명확히 충족된다고 확인되는 경우에만
-- "부분 적합": 일부만 해당되거나 추정/모호한 경우
-- "미적합": 해당 없거나 오히려 반대인 경우
-(3개 모두 적합이 나오기는 어렵습니다. 근거가 약하면 '부분 적합' 또는 '미적합'으로.)
+[score 채점 — 0~100, 정도를 정밀하게. 뭉뚱그리지 말 것]
+- 90~100: 거의 완벽히 부합
+- 70~89: 충분히 부합
+- 40~69: 일부만/애매하게 부합
+- 0~39: 거의 안 맞음
+중요: 공고마다 점수가 실제로 갈리도록 정도 차이를 반영해줘. 비슷한 직무라도 "단순 실무 vs 전체 운영"처럼 정도가 다르면 점수도 다르게. 모든 공고가 같은 점수로 수렴하지 않게.
 [source — 판단을 무엇에 근거했는지]
 - "JD 기반": 공고에 명시된 내용으로 판단 / "프로필 기반": 내 이력서·강점으로 판단 / "추정": 명시 안 됐지만 정황상 추정
 
@@ -1811,14 +1825,14 @@ JSON 형식 규칙: 모든 문자열 값 안에서는 큰따옴표(") 대신 작
 
 // raw AI result → normalized analysis fields (현재 핵심 기준 기준)
 function normalizeResult(result){
-  const LEVELS = ['적합', '부분 적합', '미적합'];
   const criteria = CRITERIA.map(def => {
     const found = (result.criteria || []).find(c => c.key === def.key);
-    let level = found && found.level;
-    if (!LEVELS.includes(level)) level = (found && found.met) ? '적합' : '미적합';
+    let score = found && Number(found.score);
+    if (!(score >= 0)) score = found ? (found.level === '적합' ? 90 : found.level === '부분 적합' ? 55 : found.level === '미적합' ? 15 : (found.met ? 90 : 15)) : 0;
+    score = Math.max(0, Math.min(100, Math.round(score)));
     let source = found && found.source;
     if (!(def.sources || []).includes(source)) source = (def.sources && def.sources[0]) || '';
-    return { key: def.key, label: def.label, level, source, note: (found && found.note) || '' };
+    return { key: def.key, label: def.label, score, source, note: (found && found.note) || '' };
   });
   return {
     company: result.company || '미상',
