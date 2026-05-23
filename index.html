@@ -330,8 +330,8 @@
 
       <div id="jdPane_image">
         <label id="jdDrop" class="drop-zone block rounded-xl py-12 px-6 text-center cursor-pointer">
-          <div class="text-base font-bold mb-2">JD 이미지를 끌어다 놓거나 클릭하세요</div>
-          <div class="text-xs text-mute leading-relaxed">잡코리아처럼 복사가 안 되는 공고도 이미지로 올리면 분석됩니다<br/>JPG · PNG · WEBP · GIF</div>
+          <div class="text-base font-bold mb-2">캡처해서 <span class="text-point">Ctrl+V</span> 붙여넣기 · 끌어다 놓기 · 클릭</div>
+          <div class="text-xs text-mute leading-relaxed">잡코리아처럼 복사가 안 되는 공고도 캡처(Win+Shift+S / ⌘⇧4)해서 바로 붙여넣으면 분석됩니다<br/>JPG · PNG · WEBP · GIF</div>
           <input id="jdFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" />
         </label>
         <div id="jdPreview" class="mt-3 hidden">
@@ -1694,6 +1694,24 @@ jdFile.addEventListener('change', (e) => {
   if (f) handleJdImage(f);
 });
 document.getElementById('jdPreviewClear').addEventListener('click', resetJd);
+
+// 캡처 후 Ctrl+V로 바로 붙여넣기 — 공고 판단 입력 화면에서 클립보드 이미지 처리
+document.addEventListener('paste', (e) => {
+  if (state.tab !== 1) return;                                              // 공고 판단 탭에서만
+  if (document.getElementById('jdInputArea').classList.contains('hidden')) return; // 결과 화면이면 무시
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const it of items) {
+    if (it.type && it.type.indexOf('image/') === 0) {
+      const f = it.getAsFile();
+      if (f) {
+        e.preventDefault();
+        if (state.jdMode !== 'image') switchJdMode('image');  // 텍스트 모드였으면 이미지로 전환
+        handleJdImage(f);
+      }
+      return;
+    }
+  }
+});
 
 async function handleJdImage(f){
   const ok = ['image/jpeg','image/png','image/webp','image/gif'];
