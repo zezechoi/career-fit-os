@@ -1930,10 +1930,13 @@ document.getElementById('jdAnalyze').addEventListener('click', async () => {
    HISTORY
 ============================================================ */
 // 채용 진행 상태 흐름
-const STATUS_FLOW = ['지원 전', '서류', '1차 면접', '최종', '패스'];
+const STATUS_FLOW = ['지원 전', '서류', '면접', '최종', '패스'];
 // 모든 상태 동일 회색 (판정 색과 혼용 금지) → 색 클래스 없음
-// 레거시/미지원 상태값은 '지원 전'으로 정규화
-function normStatus(s){ return STATUS_FLOW.includes(s) ? s : '지원 전'; }
+// 레거시/미지원 상태값 정규화 ('1차 면접' → '면접')
+function normStatus(s){
+  if (s === '1차 면접') return '면접';
+  return STATUS_FLOW.includes(s) ? s : '지원 전';
+}
 // FIT 점수 = 기준별 점수 합(적합25/부분13/미적합0) → 0~100. 옛 기록은 판정으로 추정.
 function fitScore(item){
   const crit = item.criteria || [];
