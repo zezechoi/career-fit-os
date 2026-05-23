@@ -533,24 +533,67 @@ function saveProfile(p){
     console.error('profile save failed', e);
     alert('브라우저 저장 공간이 부족해 프로필 저장에 실패했어요. 분석 기록을 일부 정리하거나 이력서/링크 양을 줄여주세요.');
   }
+  syncToServer();
 }
 // persist history with quota fallback — drops oldest entries until it fits
 function saveHistory(){
+  let ok = false;
   while (state.history.length) {
     try {
       localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
-      return true;
+      ok = true; break;
     } catch (e) {
-      if (state.history.length <= 1) { console.error('history save failed', e); return false; }
+      if (state.history.length <= 1) { console.error('history save failed', e); break; }
       state.history.pop(); // array is newest-first → remove oldest
     }
   }
-  return false;
+  syncToServer();
+  return ok;
 }
 function saveHistoryItem(item){
   state.history.unshift(item);
   if (state.history.length > 50) state.history = state.history.slice(0, 50);
   saveHistory();
+}
+
+/* ============================================================
+   CLOUD SYNC (Upstash/Vercel KV via /api/data) — 기기 간 동일 데이터
+============================================================ */
+let _syncTimer = null;
+function syncToServer(){
+  if (!state.apiKey) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(async () => {
+    try {
+      await callServer('/api/data', { action: 'save', data: { profile: state.profile, history: state.history } });
+    } catch (e) { /* KV 미설정/오류 시 로컬만 유지 */ }
+  }, 800);
+}
+async function syncFromServer(){
+  if (!state.apiKey) return;
+  try {
+    const resp = await callServer('/api/data', { action: 'load' });
+    const d = resp && resp.data;
+    if (d && (d.profile || (Array.isArray(d.history) && d.history.length))) {
+      // 서버가 진실의 원천 — 로컬 갱신
+      state.profile = deepDecode(d.profile) || null;
+      state.history = deepDecode(d.history) || [];
+      try {
+        localStorage.setItem(STORE.PROFILE, JSON.stringify(state.profile));
+        localStorage.setItem(STORE.HISTORY, JSON.stringify(state.history));
+      } catch {}
+      refreshUI();
+    } else {
+      // 서버가 비어있으면 이 기기 데이터를 올림 (최초 마이그레이션)
+      if (state.profile || state.history.length) syncToServer();
+    }
+  } catch (e) { /* 401/미설정 등은 조용히 무시 (로컬로 동작) */ }
+}
+function refreshUI(){
+  document.getElementById('profileBadgeNav').textContent = state.profile ? state.profile.summary : '';
+  if (state.tab === 1) renderJdTab();
+  else if (state.tab === 2) renderStatusTab();
+  else renderOnboardingTab();
 }
 
 /* ============================================================
@@ -746,6 +789,7 @@ document.getElementById('apiKeySave').addEventListener('click', () => {
   state.apiKey = v;
   localStorage.setItem(STORE.KEY, v);
   hideKeyOverlay();
+  syncFromServer();   // 비밀번호 입력 직후 클라우드 데이터 동기화
 });
 document.getElementById('apiKeyInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('apiKeySave').click();
@@ -2088,6 +2132,7 @@ function init(){
   } else {
     switchTab(3);   // 없으면 내 기준부터
   }
+  syncFromServer();  // 클라우드에 데이터 있으면 불러와 덮어씀 (기기 간 동기화)
 }
 
 init();
