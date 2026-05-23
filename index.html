@@ -1296,8 +1296,9 @@ function showJdResult(result, fromHistory=false){
   document.getElementById('jdHeader').classList.add('hidden');
   currentJdResult = result;
 
-  // 새 기준으로 재분석 버튼
+  // 새 기준으로 재분석 버튼 — 원본 텍스트(jd_text)가 저장된 항목에서만 노출
   const reBtn = document.getElementById('reanalyzeBtn');
+  reBtn.classList.toggle('hidden', !result.jd_text);
   reBtn.disabled = false;
   reBtn.textContent = '↻ 새 기준으로 재분석';
   reBtn.onclick = () => reanalyzeItem(result);
