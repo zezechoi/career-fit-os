@@ -204,6 +204,11 @@
 
     <!-- ONBOARDING FORM (shown when no profile) -->
     <div id="onbForm">
+      <!-- 첫 사용 안내 (무프로필일 때만 노출) -->
+      <div id="firstTimeWelcome" class="card-brand rounded-xl p-4 mb-8 hidden">
+        <div class="text-sm font-bold mb-1">먼저 프로필을 만들어주세요</div>
+        <div class="text-[13px] text-sub leading-relaxed">이력서를 한 번 입력하면 나만의 판단 기준이 만들어져요. 그다음부턴 <b class="text-ink">공고만 넣으면</b> 판정 · 어필 포인트 · 이력서 초안까지 자동으로 나옵니다.</div>
+      </div>
       <!-- STEP 1: REASON -->
       <div class="mb-10">
         <div class="flex items-center gap-3 mb-4">
@@ -559,9 +564,12 @@ function saveHistoryItem(item){
 /* ============================================================
    CLOUD SYNC (Upstash/Vercel KV via /api/data) — 기기 간 동일 데이터
 ============================================================ */
+// 테스터 데이터 분리: 클라우드 동기화 OFF — 각 브라우저는 자기 localStorage만 사용.
+// (단일 공유 비밀번호 환경에선 동기화를 켜면 모든 사용자가 같은 데이터를 공유·덮어쓰게 됨)
+const CLOUD_SYNC = false;
 let _syncTimer = null;
 function syncToServer(){
-  if (!state.apiKey) return;
+  if (!CLOUD_SYNC || !state.apiKey) return;
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(async () => {
     try {
@@ -570,7 +578,7 @@ function syncToServer(){
   }, 800);
 }
 async function syncFromServer(){
-  if (!state.apiKey) return;
+  if (!CLOUD_SYNC || !state.apiKey) return;
   try {
     const resp = await callServer('/api/data', { action: 'load' });
     const d = resp && resp.data;
@@ -871,6 +879,8 @@ function renderOnboardingTab(){
 function showForm(){
   document.getElementById('onbForm').classList.remove('hidden');
   document.getElementById('onbResult').classList.add('hidden');
+  // 첫 사용 안내는 프로필이 아직 없을 때만 (편집 시엔 숨김)
+  document.getElementById('firstTimeWelcome').classList.toggle('hidden', !!state.profile);
 
   const ta = document.getElementById('resumeText');
   if (!ta.placeholder) ta.placeholder = SAMPLE_RESUME;
