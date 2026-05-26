@@ -277,6 +277,11 @@
         <div class="text-xs tracking-widest text-mute mb-2">나의 포지셔닝</div>
         <div id="resSummary" class="text-2xl md:text-3xl font-bold leading-snug mb-6"></div>
 
+        <div class="mb-6">
+          <div class="text-xs tracking-widest text-mute mb-2">커리어 목표 · 판단의 기준선</div>
+          <div id="resGoal" class="editable text-base leading-relaxed" contenteditable="true"></div>
+        </div>
+
         <div class="divider mb-6"></div>
 
         <div class="mb-5">
@@ -293,6 +298,20 @@
             <span class="text-[11px] text-mute">3</span>
           </div>
           <ul id="resMust" class="space-y-2"></ul>
+        </div>
+
+        <div class="divider my-6"></div>
+
+        <div class="mb-6">
+          <h3 class="text-sm font-bold mb-1">나의 판단 기준 (3축)</h3>
+          <p class="text-[11px] text-mute mb-3">이 기준으로 공고를 평가해요. 내 상황에 맞게 직접 고칠 수 있어요.</p>
+          <div id="resCriteria"></div>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-bold mb-1">어필 우선순위</h3>
+          <p class="text-[11px] text-mute mb-3">공고에 지원할 때 앞세울 순서예요.</p>
+          <ul id="resAppeal" class="space-y-2"></ul>
         </div>
       </div>
 
@@ -909,8 +928,38 @@ function showOnboardingResult(p){
   document.getElementById('onbForm').classList.add('hidden');
   document.getElementById('onbResult').classList.remove('hidden');
   document.getElementById('resSummary').textContent = p.summary || '';
+  document.getElementById('resGoal').textContent = p.goal || CONFIG.candidate.goal;
   fillEditableList('resStrengths', p.strengths || [], 'strengths');
   fillEditableList('resMust', p.must || [], 'must');
+  fillCriteriaEditor(p.criteria);
+  fillEditableList('resAppeal',
+    (Array.isArray(p.appealPriority) && p.appealPriority.length) ? p.appealPriority : CONFIG.appealPriority,
+    'appeal');
+}
+
+// 3축 판단 기준 편집기 — label/비중은 CONFIG에서 고정, def만 개인화·수정 가능
+function fillCriteriaEditor(critArr){
+  const box = document.getElementById('resCriteria');
+  box.innerHTML = '';
+  CONFIG.criteria.forEach(c => {
+    const found = (critArr || []).find(x => x.key === c.key) || {};
+    const def = found.def || c.def;
+    const row = document.createElement('div');
+    row.className = 'mb-3';
+    row.innerHTML =
+      `<div class="text-xs font-bold text-sub mb-1">${escapeHtml(c.label)} <span class="text-mute font-normal">· 비중 ${c.weight}%</span></div>`
+      + `<div class="editable text-sm" contenteditable="true" data-crit="${c.key}">${escapeHtml(def)}</div>`;
+    box.appendChild(row);
+  });
+}
+function readCriteriaEditor(){
+  const prev = (state.profile && state.profile.criteria) || [];
+  return Array.from(document.querySelectorAll('#resCriteria [data-crit]')).map(el => {
+    const key = el.getAttribute('data-crit');
+    const base = CONFIG.criteria.find(c => c.key === key) || {};
+    const old = prev.find(x => x.key === key) || {};
+    return { key, def: el.textContent.trim() || base.def, basis: old.basis || base.basis };
+  });
 }
 
 function fillEditableList(id, items, key){
@@ -996,13 +1045,24 @@ document.getElementById('onbAnalyze').addEventListener('click', async () => {
 `이직 이유: ${reason}
 이력서: ${resume}
 
+이 사람의 이력서와 이직 이유를 분석해서, 앞으로 채용공고를 평가할 때 쓸 "이 사람만의 판단 기준"을 뽑아줘.
+- goal: 이 사람이 다음 직장에서 이루고 싶은 커리어 목표·방향 (이직 이유와 강점에 근거, 한 줄)
+- criteria: 직무/환경/성장 3축 각각이 "이 사람에게" 무엇을 의미하는지(def)와 무엇으로 판단하는지(basis). 이 사람의 경력·직군에 맞게 구체화. 특정 산업을 임의로 가정하지 말 것.
+- appealPriority: 이 사람이 공고에 지원할 때 앞세울 강점의 우선순위 3개
+
 아래 형식의 JSON만 응답해줘:
-{"summary":"한 줄 포지셔닝 20자 이내","strengths":["강점1","강점2","강점3"],"must":["Must조건1","조건2","조건3"],"keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"]}`;
+{"summary":"한 줄 포지셔닝 20자 이내","strengths":["강점1","강점2","강점3"],"must":["Must조건1","조건2","조건3"],"keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"],"goal":"커리어 목표 한 줄","criteria":{"job":{"def":"이 사람 기준 직무 적합의 의미 한 줄","basis":"직무 적합 판단 근거"},"env":{"def":"이 사람 기준 환경 적합의 의미 한 줄","basis":"환경 적합 판단 근거"},"growth":{"def":"이 사람 기준 성장 적합의 의미 한 줄","basis":"성장 적합 판단 근거"}},"appealPriority":["1순위","2순위","3순위"]}`;
     const data = await callClaude(
       [{ role: 'user', content: userText }],
       SYSTEM_PROMPT
     );
     const profile = deepDecode(extractJson(data));
+    const cr = profile.criteria || {};
+    const critArr = CONFIG.criteria.map(c => ({
+      key: c.key,
+      def: (cr[c.key] && cr[c.key].def) || c.def,
+      basis: (cr[c.key] && cr[c.key].basis) || c.basis,
+    }));
     const full = {
       reason,
       resume_raw: resume,
@@ -1015,6 +1075,10 @@ document.getElementById('onbAnalyze').addEventListener('click', async () => {
       strengths: profile.strengths || [],
       must: profile.must || [],
       keywords: profile.keywords || [],
+      goal: profile.goal || CONFIG.candidate.goal,
+      criteria: critArr,
+      appealPriority: (Array.isArray(profile.appealPriority) && profile.appealPriority.length)
+        ? profile.appealPriority : CONFIG.appealPriority.slice(),
       updated_at: new Date().toISOString(),
     };
     saveProfile(full);
@@ -1043,8 +1107,11 @@ document.getElementById('onbSaveDone').addEventListener('click', () => {
   const updated = {
     ...state.profile,
     summary: summaryEl.textContent.trim(),
+    goal: document.getElementById('resGoal').textContent.trim() || CONFIG.candidate.goal,
     strengths: readEditableList('resStrengths'),
     must: readEditableList('resMust'),
+    criteria: readCriteriaEditor(),
+    appealPriority: readEditableList('resAppeal'),
     updated_at: new Date().toISOString(),
   };
   saveProfile(updated);
