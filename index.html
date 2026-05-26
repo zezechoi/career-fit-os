@@ -403,7 +403,7 @@
       </div>
 
       <!-- COSMETICS 1ST-PASS FILTER FLAG -->
-      <div id="cosmeticsFlag" class="rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed hidden"></div>
+      <div id="requirementFlag" class="rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed hidden"></div>
 
       <!-- BRAND CONNECTION (always shown) -->
       <div id="brandConnectionCard" class="card-brand rounded-xl p-5 mb-4">
@@ -729,12 +729,12 @@ const CONFIG = {
   // ── 이력서 가이드 방향 ──
   resumeGuideHint: '이 JD의 핵심 요구와 가장 맞닿는 내 경험을 앞에 배치.',
 
-  // ── 1차 필터 (※ 4단계에서 산업 중립화 예정 — 현재는 임시로 화장품 유지) ──
+  // ── 필수 요건 1차 필터 (산업 중립) ──
+  //    AI가 [내 프로필] 대비 JD의 '필수 요건' 충족 여부를 판정한다. 특정 산업 하드코딩 없음.
   requirementFilter: {
     enabled: true,
-    what: '화장품/뷰티',
-    requiredMsg: '⚠️ 화장품 경력 필수 공고 — 이력서에 K-Beauty Files + 브랜드 분석 경력으로 커버 전략 필요',
-    okMsg: '✓ 화장품 경력 불필수',
+    mismatchMsg: '⚠️ 내 프로필로 충족하기 어려운 필수 요건이 있어요 — 이력서에서 커버 전략이 필요해요',
+    okMsg: '✓ 내 지원을 막는 필수 요건은 없어요',
   },
 
   // ── 이력서 초안에서 금지할 표현 (없으면 빈값) ──
@@ -1434,20 +1434,23 @@ function showJdResult(result, fromHistory=false){
   }
   document.getElementById('fitRisk').textContent = risk;
 
-  // ---- 1st-pass requirement filter flag (CONFIG.requirementFilter) ----
-  const cosFlag = document.getElementById('cosmeticsFlag');
+  // ---- 1st-pass requirement filter flag (CONFIG.requirementFilter, 산업 중립) ----
+  const reqFlag = document.getElementById('requirementFlag');
   const rf = CONFIG.requirementFilter;
-  const cosLevel = result.cosmetics && result.cosmetics.level;
-  if (rf.enabled && cosLevel === 'required') {
-    cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-warn';
-    cosFlag.textContent = rf.requiredMsg;
-    cosFlag.classList.remove('hidden');
-  } else if (rf.enabled && (cosLevel === 'preferred' || cosLevel === 'none')) {
-    cosFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-ok';
-    cosFlag.textContent = rf.okMsg;
-    cosFlag.classList.remove('hidden');
+  // 신규: result.requirement{level:'mismatch'|'ok'} / 레거시: result.cosmetics{level:'required'|...}
+  const reqObj = result.requirement
+    || (result.cosmetics ? { level: result.cosmetics.level === 'required' ? 'mismatch' : 'ok', note: result.cosmetics.note || '' } : null);
+  const reqLevel = reqObj && reqObj.level;
+  if (rf.enabled && reqLevel === 'mismatch') {
+    reqFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-warn';
+    reqFlag.textContent = rf.mismatchMsg + (reqObj.note ? ' — ' + reqObj.note : '');
+    reqFlag.classList.remove('hidden');
+  } else if (rf.enabled && reqLevel === 'ok') {
+    reqFlag.className = 'rounded-xl px-5 py-3.5 mb-4 text-sm font-semibold leading-relaxed flag-ok';
+    reqFlag.textContent = rf.okMsg;
+    reqFlag.classList.remove('hidden');
   } else {
-    cosFlag.classList.add('hidden');
+    reqFlag.classList.add('hidden');
   }
 
   // ---- brand connection (always) ----
@@ -1593,7 +1596,7 @@ async function generateResumeDraft(result){
 `[이 채용공고 분석 결과]
 회사: ${result.company || ''}
 포지션: ${result.position || ''}
-평가 기준: ${(result.criteria || []).map(c => `${c.label} → ${critLevel(c)} (${c.note || ''})`).join(' / ')}${CONFIG.requirementFilter.enabled ? `\n${CONFIG.requirementFilter.what} 경력 요건: ${result.cosmetics ? result.cosmetics.level : 'none'}` : ''}
+평가 기준: ${(result.criteria || []).map(c => `${c.label} → ${critLevel(c)} (${c.note || ''})`).join(' / ')}${CONFIG.requirementFilter.enabled && result.requirement && result.requirement.level === 'mismatch' ? `\n필수 요건 주의: ${result.requirement.note || '내 프로필로 충족하기 어려운 필수 요건 있음 — 커버 전략 필요'}` : ''}
 어필 포인트: ${(result.appeals || []).join(' | ')}
 이력서 가이드: ${result.resume_guide || ''}${jdText ? `\n원문 JD:\n${jdText}` : ''}`;
 
@@ -1871,9 +1874,9 @@ function buildJsonSchema(){
     effectiveAppealPriority().map((p, i) => `${i + 1}순위: ${p}`).join('\n');
   const rf = CONFIG.requirementFilter;
   const rfBlock = rf.enabled
-    ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
+    ? `\n[필수 요건 1차 필터] requirement.level 판정 — [내 프로필] 대비 JD의 '필수 요건(must-have)' 충족 여부:\n- "mismatch": JD에 '필수 요건'으로 명시된 자격·경력·역량 중 내 프로필로 충족하기 어려운 게 있을 때 (note에 무엇이 걸리는지 한 줄)\n- "ok": 지원을 막는 결격 필수 요건이 없을 때\n※ '우대사항'은 결격 사유가 아님. 유관 경력으로 대체 가능한 건 ok. 특정 산업을 임의로 가정하지 말 것.\n`
     : '';
-  const rfJson = rf.enabled ? `"cosmetics":{"level":"required 또는 preferred 또는 none","note":"근거 한 줄"},` : '';
+  const rfJson = rf.enabled ? `"requirement":{"level":"mismatch 또는 ok","note":"근거 한 줄"},` : '';
   return `이 채용공고를 아래 핵심 기준으로 평가해줘. 각 기준은 0~100 점수 score, 출처 source, 근거 note.
 
 [핵심 기준]
@@ -1914,7 +1917,7 @@ function normalizeResult(result){
   return {
     company: result.company || '미상',
     position: result.position || '',
-    cosmetics: result.cosmetics || null,
+    requirement: result.requirement || null,
     criteria,
     verdict: computeVerdict(criteria),
     brand_connection: result.brand_connection || '',
