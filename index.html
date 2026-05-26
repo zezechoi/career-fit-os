@@ -750,11 +750,9 @@ const CONFIG = {
 // 지원자 컨텍스트는 분석 시점에 buildProfileText()로 user 메시지에 주입됨.
 // 시스템 프롬프트는 특정 인물에 종속되지 않는 범용 역할 정의만 담는다.
 
-// display framework derived from CONFIG.criteria
+// display framework derived from CONFIG.criteria (key/label/weight 고정 — 판정·보드 로직 안정성)
+// 어필 우선순위는 분석 시점에 effectiveAppealPriority()가 프로필 우선으로 생성한다.
 const CRITERIA = CONFIG.criteria;
-
-const APPEAL_PRIORITY = '[어필 포인트 우선순위]\n' +
-  CONFIG.appealPriority.map((p, i) => `${i + 1}순위: ${p}`).join('\n');
 
 const SYSTEM_PROMPT = `커리어핏은 지원자의 이직 판단을 돕는 커리어 전문가입니다.
 
@@ -1843,16 +1841,34 @@ function buildProfileText(){
   const p = state.profile || {};
   return `내 프로필:
 포지셔닝: ${p.summary || ''}
+커리어 목표: ${p.goal || CONFIG.candidate.goal}
 핵심 강점: ${(p.strengths||[]).join(', ')}
 Must 조건: ${(p.must||[]).join(', ')}
 역량 키워드: ${(p.keywords||[]).join(', ')}`;
 }
 
+// 평가 기준: 사용자 프로필의 개인화 def/basis를 CONFIG 템플릿 위에 덮어씀(없으면 폴백).
+// key/label/weight/sources는 CONFIG에서 고정 — 판정·보드 로직 안정성 유지.
+function effectiveCriteria(){
+  const pc = (state.profile && state.profile.criteria) || [];
+  return CONFIG.criteria.map(c => {
+    const o = pc.find(x => x.key === c.key) || {};
+    return { ...c, def: o.def || c.def, basis: o.basis || c.basis };
+  });
+}
+function effectiveAppealPriority(){
+  const ap = state.profile && state.profile.appealPriority;
+  return (Array.isArray(ap) && ap.length) ? ap : CONFIG.appealPriority;
+}
+
 function buildJsonSchema(){
-  const critList = CONFIG.criteria.map((c, i) =>
+  const crit = effectiveCriteria();
+  const critList = crit.map((c, i) =>
     `${i + 1}. ${c.key} (${c.label}, 비중 ${c.weight}%): ${c.def}\n   - 판단 근거: ${c.basis}\n   - source 값은 다음 중 하나만: ${c.sources.join(' / ')}`
   ).join('\n');
-  const critJson = CONFIG.criteria.map(c => `{"key":"${c.key}","score":75,"source":"${c.sources[0]}","note":"근거 한 줄"}`).join(',');
+  const critJson = crit.map(c => `{"key":"${c.key}","score":75,"source":"${c.sources[0]}","note":"근거 한 줄"}`).join(',');
+  const appealBlock = '[어필 포인트 우선순위]\n' +
+    effectiveAppealPriority().map((p, i) => `${i + 1}순위: ${p}`).join('\n');
   const rf = CONFIG.requirementFilter;
   const rfBlock = rf.enabled
     ? `\n[${rf.what} 경력 1차 필터] cosmetics.level 판정:\n- "required": ${rf.what} 경력이 '필수 요건'으로 명시된 경우\n- "preferred": ${rf.what} 경력이 '우대사항'으로만 언급되거나, 유관 업계 경력을 인정하는 경우\n- "none": ${rf.what} 경력 언급 자체가 없음\n`
@@ -1872,7 +1888,7 @@ ${critList}
 [source — 판단을 무엇에 근거했는지]
 - "JD 기반": 공고에 명시된 내용으로 판단 / "프로필 기반": 내 이력서·강점으로 판단 / "추정": 명시 안 됐지만 정황상 추정
 
-${APPEAL_PRIORITY}
+${appealBlock}
 ${rfBlock}
 회사명 규칙: 명시된 회사명이 있으면 그대로. 없으면 식별 가능한 한 줄 설명. "미상" 단독은 정말 정보가 없을 때만. "(미상)" 같은 부가표기 금지.
 
